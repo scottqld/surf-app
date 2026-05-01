@@ -533,10 +533,12 @@
     <div class="last-updated" id="lastUpdated">—</div>
   </header>
 
-  <div class="station-toggle">
-    <button class="station-btn active" id="btnNoosa" onclick="setStation('noosa')">Noosa Head</button>
-    <button class="station-btn" id="btnMooloolaba" onclick="setStation('mooloolaba')">Mooloolaba</button>
-  </div>
+<div class="station-toggle">
+  <button class="station-btn active" id="btn0" onclick="setBreak(0)">First Pt</button>
+  <button class="station-btn" id="btn1" onclick="setBreak(1)">Nationals</button>
+  <button class="station-btn" id="btn2" onclick="setBreak(2)">Tea Tree</button>
+  <button class="station-btn" id="btn3" onclick="setBreak(3)">Granite</button>
+</div>
 
   <div id="loadingEl" class="loading">
     <div class="loading-bars">
@@ -558,6 +560,7 @@
     <div class="section-label">CURRENT CONDITIONS</div>
     <div class="current-card" id="currentCard"></div>
     <div class="synopsis-card" id="synopsisCard"></div>
+    <div class="synopsis-card" id="breakNotes"></div>
 
     <div class="section-label">7-DAY FORECAST</div>
     <div class="forecast-scroll">
@@ -601,6 +604,41 @@ const WORKER_URL = 'https://surf-worker.scottsurf.workers.dev';
 let currentStation = 'noosa';
 let cachedData = null;
 
+const BREAKS = [
+  {
+    name: 'First Point',
+    subtitle: 'First Pt',
+    notes: 'Long right-hander. Works best E–SE swell 1–2m+, light NW wind. Needs decent size to wrap around the point.',
+  },
+  {
+    name: 'Nationals',
+    subtitle: 'Nationals',
+    notes: 'Powerful peak. Best E–NE swell 1.5m+, offshore NW–W wind. More exposed than First Pt, picks up more size.',
+  },
+  {
+    name: 'Tea Tree',
+    subtitle: 'Tea Tree',
+    notes: 'Mellow right. Best NE swell 1–1.5m, light W wind. Sheltered from SE, good in smaller conditions.',
+  },
+  {
+    name: 'Granite Bay',
+    subtitle: 'Granite',
+    notes: 'Sheltered cove. Works in small N–NE swell, any wind. Good when everywhere else is blown out.',
+  },
+];
+
+let currentBreak = 0;
+
+function setBreak(index) {
+  currentBreak = index;
+  BREAKS.forEach((_, i) => {
+    document.getElementById(`btn${i}`).classList.toggle('active', i === index);
+  });
+  const b = BREAKS[index];
+  document.getElementById('logoSubtitle').textContent = b.subtitle;
+  document.getElementById('breakNotes').textContent = b.notes;
+}
+
 function setStation(station) {
   document.getElementById('logoSubtitle').textContent = station === 'noosa' ? 'Noosa' : 'Mooloolaba';  
   currentStation = station;
@@ -643,6 +681,7 @@ async function loadData(forceRefresh = false) {
   } finally {
     btn.classList.remove('spinning');
   }
+  setBreak(0);
 }
 
 function renderAll(data) {
