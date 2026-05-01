@@ -18,7 +18,7 @@
     --accent2: #ff6b35;
     --high: #00e5a0;
     --low: #4a9eff;
-    --warn: #ffb347;
+    --warn: #ffc83a;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -611,21 +611,45 @@ const BREAKS = [
     name: 'First Point',
     subtitle: 'First Pt',
     notes: 'Long right-hander. Works best E–SE swell 1–2m+, light NW wind. Needs decent size to wrap around the point.',
+    ideal: {
+      swellDirs: ['E', 'ESE', 'SE'],
+      windDirs: ['NW', 'WNW', 'W', 'NNW', 'N'],
+      swellMin: 1.0,
+      swellMax: 3.0,
+    }
   },
   {
     name: 'Nationals',
     subtitle: 'Nationals',
-    notes: 'Powerful peak. Best E–NE swell 1.5m+, offshore NW–W wind. More exposed than First Pt, picks up more size.',
+    notes: 'Powerful peak. Best E–NE swell 1.5m+, offshore NW–W wind. More exposed, picks up more size.',
+    ideal: {
+      swellDirs: ['E', 'ENE', 'NE'],
+      windDirs: ['NW', 'WNW', 'W', 'SW'],
+      swellMin: 1.5,
+      swellMax: 3.5,
+    }
   },
   {
     name: 'Tea Tree',
     subtitle: 'Tea Tree',
     notes: 'Mellow right. Best NE swell 1–1.5m, light W wind. Sheltered from SE, good in smaller conditions.',
+    ideal: {
+      swellDirs: ['NE', 'ENE', 'E'],
+      windDirs: ['W', 'WNW', 'SW', 'WSW'],
+      swellMin: 0.8,
+      swellMax: 2.0,
+    }
   },
   {
     name: 'Granite Bay',
     subtitle: 'Granite',
     notes: 'Sheltered cove. Works in small N–NE swell, any wind. Good when everywhere else is blown out.',
+    ideal: {
+      swellDirs: ['N', 'NNE', 'NE'],
+      windDirs: ['N', 'NE', 'NW', 'W', 'E', 'S', 'SE', 'SW', 'NNE', 'NNW', 'ENE', 'ESE', 'SSE', 'SSW', 'WNW', 'WSW'],
+      swellMin: 0.5,
+      swellMax: 1.5,
+    }
   },
 ];
 
@@ -638,7 +662,154 @@ function setBreak(index) {
   });
   const b = BREAKS[index];
   document.getElementById('logoSubtitle').textContent = b.subtitle;
-  document.getElementById('breakNotes').textContent = b.notes;
+
+  const note = cachedData ? conditionNote(b, cachedData.forecast) : '';
+  document.getElementById('breakNotes').innerHTML =
+    `<span style="color: var(--accent); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;">About</span><br>
+    <span style="color: var(--warn);">${b.notes}</span>
+    ${note ? `<br><br><span style="color: var(--accent); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;">Conditions</span><br>
+    <span style="color: var(--warn); font-style:normal;">${note}</span>` : ''}`;
+}
+
+function scoreBreak(breakData, forecast) {
+  if (!forecast || !forecast.forecasts || forecast.forecasts.length === 0) return 0;
+  const current = forecast.forecasts[0];
+  let score = 0;
+
+  // Extract swell direction from swell text
+  const swellText = current.swell || '';
+  const windText = current.winds || '';
+
+  const dirMap = {
+    'NNE': 'NNE', 'NNW': 'NNW', 'SSE': 'SSE', 'SSW': 'SSW',
+    'ENE': 'ENE', 'ESE': 'ESE', 'WNW': 'WNW', 'WSW': 'WSW',
+    'NE': 'NE', 'NW': 'NW', 'SE': 'SE', 'SW': 'SW',
+    'N': 'N', 'S': 'S', 'E': 'E', 'W': 'W',
+  };
+
+  function extractDir(text) {
+    const shortened = shortDir(text);
+    for (const dir of Object.keys(dirMap)) {
+      if (shortened.startsWith(dir + ' ') || shortened.includes(' ' + dir + ' ') || shortened.startsWith(dir + '\n')) {
+        return dir;
+      }
+    }
+    return null;
+  }
+
+  function extractHeight(text) {
+    const match = text.match(/(\d+\.?\d*)\s*(to\s*(\d+\.?\d*))?\s*m/);
+    if (!match) return null;
+    const low = parseFloat(match[1]);
+    const high = match[3] ? parseFloat(match[3]) : low;
+    return (low + high) / 2;
+  }
+
+  const swellDir = extractDir(swellText);
+  const windDir = extractDir(windText);
+  const swellHeight = extractHeight(shortDir(swellText));
+
+  const ideal = breakData.ideal;
+
+  // Score swell direction (0-3)
+  if (swellDir && ideal.swellDirs.includes(swellDir)) score += 3;
+
+  // Score wind direction (0-3)
+  if (windDir && ideal.windDirs.includes(windDir)) score += 3;
+
+  // Score swell height (0-4)
+  if (swellHeight !== null) {
+    if (swellHeight >= ideal.swellMin && swellHeight <= ideal.swellMax) score += 4;
+    else if (swellHeight >= ideal.swellMin * 0.7 && swellHeight <= ideal.swellMax * 1.3) score += 2;
+  }
+
+  return score; // max 10
+}
+
+function conditionNote(breakData, forecast) {
+  if (!forecast || !forecast.forecasts || forecast.forecasts.length === 0) return '';
+  const current = forecast.forecasts[0];
+  const ideal = breakData.ideal;
+
+  const swellText = shortDir(current.swell || '');
+  const windText = shortDir(current.winds || '');
+
+  function extractDir(text) {
+    const dirs = ['NNE','NNW','SSE','SSW','ENE','ESE','WNW','WSW','NE','NW','SE','SW','N','S','E','W'];
+    for (const dir of dirs) {
+      if (text.startsWith(dir + ' ') || text.includes(' ' + dir + ' ') || text.startsWith(dir + '\n')) return dir;
+    }
+    return null;
+  }
+
+  function extractHeight(text) {
+    const match = text.match(/(\d+\.?\d*)\s*(to\s*(\d+\.?\d*))?\s*m/);
+    if (!match) return null;
+    const low = parseFloat(match[1]);
+    const high = match[3] ? parseFloat(match[3]) : low;
+    return (low + high) / 2;
+  }
+
+  const swellDir = extractDir(swellText);
+  const windDir = extractDir(windText);
+  const swellHeight = extractHeight(swellText);
+
+  const notes = [];
+
+  // Swell direction
+  if (swellDir) {
+    if (ideal.swellDirs.includes(swellDir)) {
+      notes.push(`${swellDir} swell is on the money`);
+    } else {
+      notes.push(`${swellDir} swell isn't ideal — best from ${ideal.swellDirs.join(' or ')}`);
+    }
+  }
+
+  // Swell height
+  if (swellHeight !== null) {
+    if (swellHeight >= ideal.swellMin && swellHeight <= ideal.swellMax) {
+      notes.push(`size is good at ${swellHeight.toFixed(1)}m`);
+    } else if (swellHeight < ideal.swellMin) {
+      notes.push(`a bit small at ${swellHeight.toFixed(1)}m — needs ${ideal.swellMin}m+`);
+    } else {
+      notes.push(`getting big at ${swellHeight.toFixed(1)}m — best under ${ideal.swellMax}m`);
+    }
+  }
+
+  // Wind direction
+  if (windDir) {
+    if (ideal.windDirs.includes(windDir)) {
+      notes.push(`${windDir} wind is offshore`);
+    } else {
+      notes.push(`${windDir} wind is onshore — best with ${ideal.windDirs.slice(0,3).join('/')} wind`);
+    }
+  }
+
+  return notes.length > 0 ? notes.join(', ') + '.' : '';
+}
+
+function updateBreakIndicators(forecast) {
+  BREAKS.forEach((b, i) => {
+    const score = scoreBreak(b, forecast);
+    const btn = document.getElementById(`btn${i}`);
+    // Remove old indicators
+    btn.querySelector('.break-dot')?.remove();
+
+    const dot = document.createElement('span');
+    dot.className = 'break-dot';
+
+    if (score >= 8) {
+      dot.style.cssText = 'display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--high); margin-left:5px; vertical-align:middle; box-shadow: 0 0 6px var(--high);';
+      btn.title = 'Firing!';
+    } else if (score >= 5) {
+      dot.style.cssText = 'display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--warn); margin-left:5px; vertical-align:middle;';
+      btn.title = 'Decent conditions';
+    } else {
+      dot.style.cssText = 'display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--muted); margin-left:5px; vertical-align:middle; opacity:0.4;';
+      btn.title = 'Not ideal';
+    }
+    btn.appendChild(dot);
+  });
 }
 
 function getCurrentTide(tides) {
@@ -729,6 +900,7 @@ async function loadData(forceRefresh = false) {
 
 function renderAll(data) {
   renderForecast(data.forecast, data.tides.noosa);
+  updateBreakIndicators(data.forecast);  
   renderTides(data.tides[currentStation]);
   requestAnimationFrame(() => renderSwellChart(data.swell));
 
