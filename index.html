@@ -676,6 +676,32 @@ const BREAKS = [
 
 let currentBreak = 0;
 
+///////////////////////////////////////////////////
+function conditionNoteTomorrow(breakData, forecast) {
+  if (!forecast || !forecast.forecasts || forecast.forecasts.length < 2) return '';
+  const tomorrow = forecast.forecasts[1];
+  const ideal = breakData.ideal;
+  const swellDir = extractDir(tomorrow.swell || '');
+  const windDir = extractDir(tomorrow.winds || '');
+  const swellHeight = extractHeight(tomorrow.swell || '');
+  const notes = [];
+  if (swellDir) {
+    if (ideal.swellDirs.includes(swellDir)) notes.push(`${swellDir} swell is on the money`);
+    else notes.push(`${swellDir} swell isn't ideal — best from ${ideal.swellDirs.join(' or ')}`);
+  }
+  if (swellHeight !== null) {
+    if (swellHeight >= ideal.swellMin && swellHeight <= ideal.swellMax) notes.push(`size is good at ${swellHeight.toFixed(1)}m`);
+    else if (swellHeight < ideal.swellMin) notes.push(`a bit small at ${swellHeight.toFixed(1)}m — needs ${ideal.swellMin}m+`);
+    else notes.push(`getting big at ${swellHeight.toFixed(1)}m — best under ${ideal.swellMax}m`);
+  }
+  if (windDir) {
+    if (ideal.windDirs.includes(windDir)) notes.push(`${windDir} wind is offshore`);
+    else notes.push(`${windDir} wind is onshore — best with ${ideal.windDirs.slice(0,3).join('/')} wind`);
+  }
+  return notes.length ? notes.join(', ') + '.' : '';
+}
+
+///////////////////////////////////////////////////
 function setBreak(index) {
   currentBreak = index;
   BREAKS.forEach((_, i) => {
@@ -686,15 +712,42 @@ function setBreak(index) {
   const imgEl = document.getElementById('breakImg');
   if (imgEl) imgEl.src = b.img || '';
 
-const score = cachedData ? scoreBreak(b, cachedData.forecast) : null;
+  const score = cachedData ? scoreBreak(b, cachedData.forecast) : null;
   const note = cachedData ? conditionNote(b, cachedData.forecast) : '';
+  const noteTomorrow = cachedData ? conditionNoteTomorrow(b, cachedData.forecast) : '';
+  const tomorrowDay = cachedData && cachedData.forecast.forecasts[1] ? cachedData.forecast.forecasts[1].day : 'Tomorrow';
+
   document.getElementById('breakNotes').innerHTML =
     `<span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">About</span><br>
-    <span style="color:#fff;font-style:normal;">${note}</span>
+    <span style="color:#fff;">${b.notes}</span>
     ${note ? `<br><br><span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">Conditions</span>
     <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;">${score !== null ? score + '/10' : ''}</span><br>
-    <span style="color:#fff;font-style:normal;">${note}</span>` : ''}`;}
+    <span style="color:#fff;font-style:normal;">${note}</span>` : ''}
+    ${noteTomorrow ? `<br><br><span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">${tomorrowDay.toUpperCase()}</span><br>
+    <span style="color:#fff;font-style:normal;">${noteTomorrow}</span>` : ''}`;  
+}
 
+///////////////////////////////////////////////////
+  function extractDir(text) {
+    const shortened = shortDir(text);
+    for (const dir of Object.keys(dirMap)) {
+      if (shortened.startsWith(dir + ' ') || shortened.includes(' ' + dir + ' ') || shortened.startsWith(dir + '\n')) {
+        return dir;
+      }
+    }
+    return null;
+  }
+
+///////////////////////////////////////////////////
+  function extractHeight(text) {
+    const match = text.match(/(\d+\.?\d*)\s*(to\s*(\d+\.?\d*))?\s*m/);
+    if (!match) return null;
+    const low = parseFloat(match[1]);
+    const high = match[3] ? parseFloat(match[3]) : low;
+    return (low + high) / 2;
+  }
+
+///////////////////////////////////////////////////
 function scoreBreak(breakData, forecast) {
   if (!forecast || !forecast.forecasts || forecast.forecasts.length === 0) return 0;
   const current = forecast.forecasts[0];
@@ -711,23 +764,6 @@ function scoreBreak(breakData, forecast) {
     'N': 'N', 'S': 'S', 'E': 'E', 'W': 'W',
   };
 
-  function extractDir(text) {
-    const shortened = shortDir(text);
-    for (const dir of Object.keys(dirMap)) {
-      if (shortened.startsWith(dir + ' ') || shortened.includes(' ' + dir + ' ') || shortened.startsWith(dir + '\n')) {
-        return dir;
-      }
-    }
-    return null;
-  }
-
-  function extractHeight(text) {
-    const match = text.match(/(\d+\.?\d*)\s*(to\s*(\d+\.?\d*))?\s*m/);
-    if (!match) return null;
-    const low = parseFloat(match[1]);
-    const high = match[3] ? parseFloat(match[3]) : low;
-    return (low + high) / 2;
-  }
 
   const swellDir = extractDir(swellText);
   const windDir = extractDir(windText);
@@ -750,14 +786,7 @@ function scoreBreak(breakData, forecast) {
   return score; // max 10
 }
 
-function conditionNote(breakData, forecast) {
-  if (!forecast || !forecast.forecasts || forecast.forecasts.length === 0) return '';
-  const current = forecast.forecasts[0];
-  const ideal = breakData.ideal;
-
-  const swellText = shortDir(current.swell || '');
-  const windText = shortDir(current.winds || '');
-
+///////////////////////////////////////////////////
   function extractDir(text) {
     const dirs = ['NNE','NNW','SSE','SSW','ENE','ESE','WNW','WSW','NE','NW','SE','SW','N','S','E','W'];
     for (const dir of dirs) {
@@ -773,6 +802,16 @@ function conditionNote(breakData, forecast) {
     const high = match[3] ? parseFloat(match[3]) : low;
     return (low + high) / 2;
   }
+
+///////////////////////////////////////////////////
+function conditionNote(breakData, forecast) {
+  if (!forecast || !forecast.forecasts || forecast.forecasts.length === 0) return '';
+  const current = forecast.forecasts[0];
+  const ideal = breakData.ideal;
+
+  const swellText = shortDir(current.swell || '');
+  const windText = shortDir(current.winds || '');
+
 
   const swellDir = extractDir(swellText);
   const windDir = extractDir(windText);
@@ -812,6 +851,7 @@ function conditionNote(breakData, forecast) {
   return notes.length > 0 ? notes.join(', ') + '.' : '';
 }
 
+///////////////////////////////////////////////////
 function updateBreakIndicators(forecast) {
   BREAKS.forEach((b, i) => {
     const score = scoreBreak(b, forecast);
@@ -828,6 +868,7 @@ function updateBreakIndicators(forecast) {
     }
   });
 }
+///////////////////////////////////////////////////
 
 function getCurrentTide(tides) {
   if (!tides || !tides.tides || tides.tides.length === 0) return null;
@@ -870,6 +911,7 @@ function getCurrentTide(tides) {
   };
 }
 
+///////////////////////////////////////////////////
 function setStation(station) {
   document.getElementById('logoSubtitle').textContent = station === 'noosa' ? 'Noosa' : 'Mooloolaba';  
   currentStation = station;
@@ -880,6 +922,7 @@ function setStation(station) {
   if (cachedData) renderTides(cachedData.tides[station]);
 }
 
+///////////////////////////////////////////////////
 async function loadData(forceRefresh = false) {
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
@@ -915,6 +958,7 @@ async function loadData(forceRefresh = false) {
   setBreak(0);
 }
 
+///////////////////////////////////////////////////
 function renderAll(data) {
   renderForecast(data.forecast, data.tides.noosa);
   updateBreakIndicators(data.forecast);  
@@ -932,6 +976,7 @@ function renderAll(data) {
   }, 100);
 }
 
+///////////////////////////////////////////////////
 function formatTideTime(time) {
   const [h, m] = time.split(':').map(Number);
   const ampm = h < 12 ? 'am' : 'pm';
@@ -939,6 +984,7 @@ function formatTideTime(time) {
   return `${hour}:${m.toString().padStart(2, '0')}${ampm}`;
 }
 
+///////////////////////////////////////////////////
 function shortDir(text) {
   const dirs = {
     'north-northeasterly': 'NNE', 'north-northwesterly': 'NNW',
@@ -962,6 +1008,7 @@ function shortDir(text) {
     m => dirs[m.toLowerCase()] || m);
 }
 
+///////////////////////////////////////////////////
 function renderForecast(forecast, tideData) {
   // Warning
   const warnEl = document.getElementById('warningBanner');
@@ -1052,6 +1099,7 @@ function renderForecast(forecast, tideData) {
   });
 }
 
+///////////////////////////////////////////////////
 function renderTides(tideData) {
   const container = document.getElementById('tidesContainer');
   if (!tideData || !tideData.tides || tideData.tides.length === 0) {
@@ -1091,6 +1139,7 @@ function renderTides(tideData) {
   });
 }
 
+///////////////////////////////////////////////////
 function renderSwellChart(swellData) {
   const canvas = document.getElementById('swellChart');
   const dpr = window.devicePixelRatio || 1;
