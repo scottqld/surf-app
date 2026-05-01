@@ -193,6 +193,8 @@
   .condition-item:nth-child(even) { border-right: none; }
   .condition-item:nth-last-child(-n+2) { border-bottom: none; }
 
+  .condition-item:last-child { border-bottom: none; border-right: none; }
+
   .condition-label {
     font-family: 'DM Mono', monospace;
     font-size: 9px;
@@ -639,6 +641,47 @@ function setBreak(index) {
   document.getElementById('breakNotes').textContent = b.notes;
 }
 
+function getCurrentTide(tides) {
+  if (!tides || !tides.tides || tides.tides.length === 0) return null;
+  const now = new Date();
+  const todayStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+  const todayTides = tides.tides.filter(t => t.date === todayStr);
+  if (todayTides.length === 0) return null;
+
+  // Convert tide times to today's Date objects
+  const tidesWithDates = todayTides.map(t => {
+    const [h, m] = t.time.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return { ...t, dateObj: d };
+  });
+
+  // Find the surrounding tides
+  const past = tidesWithDates.filter(t => t.dateObj <= now);
+  const future = tidesWithDates.filter(t => t.dateObj > now);
+  const prev = past[past.length - 1];
+  const next = future[0];
+
+  if (!prev || !next) return null;
+
+  const totalMins = (next.dateObj - prev.dateObj) / 60000;
+  const elapsed = (now - prev.dateObj) / 60000;
+  const pct = Math.round((elapsed / totalMins) * 100);
+  const rising = next.type === 'High';
+  const minsToNext = Math.round((next.dateObj - now) / 60000);
+  const hToNext = Math.floor(minsToNext / 60);
+  const mToNext = minsToNext % 60;
+  const timeToNext = hToNext > 0 ? `${hToNext}h ${mToNext}m` : `${mToNext}m`;
+
+  return {
+    current: parseFloat(prev.height) + (parseFloat(next.height) - parseFloat(prev.height)) * (elapsed / totalMins),
+    rising,
+    next,
+    timeToNext,
+    pct,
+  };
+}
+
 function setStation(station) {
   document.getElementById('logoSubtitle').textContent = station === 'noosa' ? 'Noosa' : 'Mooloolaba';  
   currentStation = station;
@@ -685,9 +728,9 @@ async function loadData(forceRefresh = false) {
 }
 
 function renderAll(data) {
-  renderForecast(data.forecast);
+  renderForecast(data.forecast, data.tides.noosa);
   renderTides(data.tides[currentStation]);
-  renderSwellChart(data.swell);
+  requestAnimationFrame(() => renderSwellChart(data.swell));
 
   document.getElementById('loadingEl').style.display = 'none';
   document.getElementById('content').classList.add('visible');
@@ -730,7 +773,7 @@ function shortDir(text) {
     m => dirs[m.toLowerCase()] || m);
 }
 
-function renderForecast(forecast) {
+function renderForecast(forecast, tideData) {
   // Warning
   const warnEl = document.getElementById('warningBanner');
   if (forecast.warning && forecast.warning.length > 5) {
@@ -742,6 +785,21 @@ function renderForecast(forecast) {
 
   // Synopsis
   document.getElementById('synopsisCard').textContent = forecast.synopsis || '—';
+
+
+  const tide = getCurrentTide(tideData);
+  const tideHtml = tide ? `
+  <div class="condition-item" style="grid-column: 1 / -1; border-right: none;">
+    <div class="condition-label">Tide</div>
+    <div class="condition-value">
+      <span style="color: ${tide.rising ? 'var(--high)' : 'var(--low)'}">
+        ${tide.rising ? '▲ Rising' : '▼ Falling'} · ${tide.current.toFixed(2)}m
+      </span>
+      <span style="color: var(--muted); font-size:11px; margin-left: 8px;">
+        ${tide.next.type} ${tide.next.height}m at ${formatTideTime(tide.next.time)} (${tide.timeToNext})
+      </span>
+    </div>
+  </div>` : '';
 
   // Current conditions (first forecast day)
   const current = forecast.forecasts[0];
@@ -768,8 +826,9 @@ function renderForecast(forecast) {
         <div class="condition-item">
           <div class="condition-label">Weather</div>
           <div class="condition-value">${current.weather}</div>
-        </div>
+        </div>      
       </div>
+      ${tideHtml}
     `;
   }
 
