@@ -993,7 +993,7 @@ async function loadData(forceRefresh = false) {
 
 ///////////////////////////////////////////////////
 function renderAll(data) {
-  renderForecast(data.forecast, data.tides.noosa);
+  renderForecast(data.forecast, data.tides.noosa, data.swell);
   updateBreakIndicators(data.forecast);  
   renderTides(data.tides[currentStation]);
   requestAnimationFrame(() => renderSwellChart(data.swell));
@@ -1042,7 +1042,7 @@ function shortDir(text) {
 }
 
 ///////////////////////////////////////////////////
-function renderForecast(forecast, tideData) {
+function renderForecast(forecast, tideData, swellData) {
   // Warning
   const warnEl = document.getElementById('warningBanner');
   if (forecast.warning && forecast.warning.length > 5) {
@@ -1055,6 +1055,33 @@ function renderForecast(forecast, tideData) {
   // Synopsis
   document.getElementById('synopsisCard').textContent = forecast.synopsis || '—';
 
+
+  // Current conditions (first forecast day)
+  const current = forecast.forecasts[0];
+
+  // Get current hour swell period from Open-Meteo
+  // Open-Meteo times are in Brisbane local time (UTC+10)
+  let currentPeriod = null;
+  if (swellData && swellData.hourly) {
+    const now = new Date();
+    const brisbaneHour = new Date(now.getTime() + 10 * 60 * 60 * 1000);
+    const hourStr = brisbaneHour.toISOString().slice(0, 13);
+    const idx = swellData.hourly.time.findIndex(t => t.startsWith(hourStr));
+    const useIdx = idx > -1 ? idx : 0;
+    const periodArr = swellData.hourly.swell_wave_period || swellData.hourly.wave_period || null;
+      currentPeriod = periodArr ? periodArr[useIdx] : null;
+  }
+
+  // Extract wind speed from BOM text
+  function extractWindSpeed(text) {
+    const s = shortDir(text);
+    const match = s.match(/(\d+)\s*to\s*(\d+)\s*kts/);
+    if (match) return `${match[1]}–${match[2]} kts`;
+    const single = s.match(/(\d+)\s*kts/);
+    if (single) return `${single[1]} kts`;
+    return null;
+  }
+  const windSpeed = current ? extractWindSpeed(current.winds) : null;
 
   const tide = getCurrentTide(tideData);
   const tideHtml = tide ? `
@@ -1070,8 +1097,6 @@ function renderForecast(forecast, tideData) {
     </div>
   </div>` : '';
 
-  // Current conditions (first forecast day)
-  const current = forecast.forecasts[0];
   const currentCard = document.getElementById('currentCard');
   if (current) {
     currentCard.innerHTML = `
@@ -1081,8 +1106,8 @@ function renderForecast(forecast, tideData) {
       </div>
       <div class="conditions-grid">
         <div class="condition-item">
-          <div class="condition-label">Winds</div>
-          <div class="condition-value">${shortDir(current.winds)}</div>
+          <div class="condition-label">Wind</div>
+          <div class="condition-value">${extractDir(shortDir(current.winds)) || shortDir(current.winds)}${windSpeed ? ' · ' + windSpeed : ''}</div>
         </div>
         <div class="condition-item">
           <div class="condition-label">Seas</div>
@@ -1090,12 +1115,13 @@ function renderForecast(forecast, tideData) {
         </div>
         <div class="condition-item">
           <div class="condition-label">Swell</div>
-          <div class="condition-value">${shortDir(current.swell)}</div>
+          <div class="condition-value">${extractDir(shortDir(current.swell)) || shortDir(current.swell)}${currentPeriod !== null && currentPeriod !== undefined ? ' · ' + Number(currentPeriod).toFixed(1) + 's' : ''}</div>
         </div>
         <div class="condition-item">
           <div class="condition-label">Weather</div>
           <div class="condition-value">${current.weather}</div>
-        </div>      
+        </div>
+
       </div>
       ${tideHtml}
     `;
