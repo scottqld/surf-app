@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Surf — Noosa</title>
+<title>SurfCall — Noosa</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;1,300&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet">
 <style>
@@ -557,7 +557,7 @@
 
 <div class="app">
   <header class="header">
-    <div class="logo">SURF<span>SC</span> <small id="logoSubtitle">Noosa</small></div>
+    <div class="logo">SURF<span>CALL</span></div>
     <div class="last-updated" id="lastUpdated">—</div>
   </header>
 
@@ -727,6 +727,7 @@ const BREAKS = [
     notes: 'Powerful right-hand point — Boiling Pot takeoff is advanced only. Best ENE swell, SE–S offshore wind. More exposed than First Point, picks up more size. Low to mid tide best.',
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
+    advanced: true, // Boiling Pot takeoff — expert surfers only
     exposure: 0.38, // Nationals: slightly more exposed than First Point
     ideal:      { swellDirs: ['ENE', 'E', 'NE'],         windDirs: ['SE', 'SSE', 'S'],                     swellMin: 1.2, swellMax: 3.0, periodMin: 10 },
     acceptable: { swellDirs: ['ESE', 'NNE', 'SE'],      windDirs: ['SSW', 'SW', 'ESE'],                   swellMin: 0.8, swellMax: 3.5, periodMin: 8  },
@@ -749,6 +750,7 @@ const BREAKS = [
     notes: 'Most exposed of the Noosa points — picks up the most swell and the most wind. Works with most swell directions and S winds. Good option when everywhere else is too small. Punchier but less perfect than Tea Tree.',
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
+    advanced: true, // Most exposed, powerful — intermediate to advanced
     exposure: 0.45, // Granite Bay: most exposed of the points
     ideal:      { swellDirs: ['ENE', 'E', 'NE', 'NNE'], windDirs: ['S', 'SSE', 'SE', 'SSW'],              swellMin: 0.8, swellMax: 2.5, periodMin: 9  },
     acceptable: { swellDirs: ['ESE', 'N', 'NNW', 'SE'], windDirs: ['SW', 'W', 'ESE'],                    swellMin: 0.5, swellMax: 3.0, periodMin: 7  },
@@ -809,7 +811,8 @@ function conditionNoteTomorrow(breakData, forecast) {
   // Wind direction + speed
   if (windDir) {
     const speedKts = extractWindSpeedKts(tomorrow.winds || '');
-    const speedStr = speedKts !== null ? ` at ${Math.round(speedKts)} kts` : '';
+    const speedKmh = speedKts !== null ? Math.round(speedKts * 1.852) : null;
+    const speedStr = speedKts !== null ? ` at ${Math.round(speedKts)} kts (${speedKmh} km/h)` : '';
     if (ideal.windDirs.includes(windDir))           notes.push(`${windDir} wind is offshore${speedStr}`);
     else if (acceptable.windDirs.includes(windDir)) notes.push(`${windDir} wind is manageable${speedStr}`);
     else if (avoid.windDirs.includes(windDir))      notes.push(`${windDir} wind is onshore${speedStr}`);
@@ -844,19 +847,28 @@ function setBreak(index) {
     document.getElementById(`btn${i}`).classList.toggle('active', i === index);
   });
   const b = BREAKS[index];
-  document.getElementById('logoSubtitle').textContent = b.subtitle;
   const imgEl = document.getElementById('breakImg');
   if (imgEl) imgEl.src = getBreakImg(index);
 
   // Update surf height in current conditions card based on selected break exposure
   const surfVal = document.getElementById('surfHeightValue');
   if (surfVal && cachedData) {
-    const offshoreH = extractHeight(shortDir(cachedData.forecast.forecasts[0]?.swell || ''));
-    const surfH = estimateSurfHeight(offshoreH, b.exposure);
+    const swellText = shortDir(cachedData.forecast.forecasts[0]?.swell || '');
+    const offshoreH = extractHeight(swellText);
+    const swellDir = extractDir(swellText);
+    const surfH = estimateSurfHeight(offshoreH, b.exposure, swellDir, b);
     surfVal.innerHTML = surfH !== null
       ? `~${surfH.toFixed(1)}m <span style="color:var(--muted);font-size:10px;">est. face at ${b.subtitle}</span>`
       : '—';
   }
+
+  // Update surf heights in extended forecast cards for the newly selected break
+  document.querySelectorAll('.fc-surf').forEach(el => {
+    const h = parseFloat(el.dataset.offshore) || null;
+    const d = el.dataset.dir || null;
+    const sH = estimateSurfHeight(h, b.exposure, d, b);
+    el.textContent = sH !== null ? '~' + sH.toFixed(1) + 'm' : '—';
+  });
 
   const score = cachedData ? scoreBreak(b, cachedData.forecast) : null;
   const note = cachedData ? conditionNote(b, cachedData.forecast) : '';
@@ -899,6 +911,16 @@ function setBreak(index) {
         contextStr = ` · better ${bestDay.toLowerCase()}`;
       }
     }
+    // 7-day swell context from chart data — above/below average
+    if (cachedData.swell?.hourly?.wave_height) {
+      const waveArr = cachedData.swell.hourly.wave_height;
+      const avg7day = waveArr.slice(0, 28).reduce((a, v) => a + v, 0) / Math.min(28, waveArr.length);
+      const currentH = extractHeight(shortDir(cachedData.forecast.forecasts[0]?.swell || ''));
+      if (currentH !== null && avg7day > 0) {
+        if (currentH > avg7day * 1.3 && !contextStr.includes('best')) contextStr += ' · above avg swell';
+        else if (currentH < avg7day * 0.7) contextStr += ' · below avg swell';
+      }
+    }
   }
   const noteTomorrow = cachedData ? conditionNoteTomorrow(b, cachedData.forecast) : '';
   const tomorrowDay = cachedData && cachedData.forecast.forecasts[1] ? cachedData.forecast.forecasts[1].day : 'Tomorrow';
@@ -925,16 +947,11 @@ function setBreak(index) {
     </div>
     ${note ? `<br><span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">Conditions</span>
     <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;">${score !== null ? score + '/10' : ''}${contextStr}</span><br>
-    ${(() => {
-      const offshoreH = cachedData ? extractHeight(shortDir(cachedData.forecast.forecasts[0]?.swell || '')) : null;
-      const surfH = estimateSurfHeight(offshoreH, b.exposure);
-      return surfH !== null ? `<span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;">~${surfH.toFixed(1)}m surf · ${offshoreH.toFixed(1)}m offshore</span><br>` : '';
-    })()}
     <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:8px;letter-spacing:0.5px;">swell dir · size · period · wind · tide · swell quality</span><br>
     <span style="color:#fff;font-style:normal;" id="conditionNoteText">${note}</span>` : ''}
     ${noteTomorrow ? `<br><br><span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">${tomorrowDay.toUpperCase()}</span>
     <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;">${scoreTomorrow !== null ? scoreTomorrow + '/10' : ''}</span>
-    ${score !== null && scoreTomorrow !== null ? `<span style="font-size:10px;margin-left:4px;${scoreTomorrow > score ? 'color:var(--high)' : scoreTomorrow < score ? 'color:#ff6464' : 'color:var(--muted)'}">${scoreTomorrow > score ? '↑' : scoreTomorrow < score ? '↓' : '→'}</span>` : ''}<br>
+    ${score !== null && scoreTomorrow !== null ? '<span style="font-size:10px;margin-left:4px;' + (scoreTomorrow > score ? 'color:var(--high)' : scoreTomorrow < score ? 'color:#ff6464' : 'color:var(--muted)') + '">' + (scoreTomorrow > score ? '↑' : scoreTomorrow < score ? '↓' : '→') + '</span>' : ''}<br>
     <span style="color:#fff;font-style:normal;">${noteTomorrow}</span>` : ''}`;
 
   document.getElementById('breakNotes').__aboutOpen = aboutOpen;
@@ -1152,7 +1169,8 @@ function conditionNote(breakData, forecast) {
   // Wind direction
   if (windDir) {
     const speedKts = extractWindSpeedKts(current.winds || '');
-    const speedStr = speedKts !== null ? ` at ${Math.round(speedKts)} kts` : '';
+    const speedKmh = speedKts !== null ? Math.round(speedKts * 1.852) : null;
+    const speedStr = speedKts !== null ? ` at ${Math.round(speedKts)} kts (${speedKmh} km/h)` : '';
     if (ideal.windDirs.includes(windDir)) notes.push(`${windDir} wind is offshore${speedStr}`);
     else if (acceptable.windDirs.includes(windDir)) notes.push(`${windDir} wind is manageable${speedStr}`);
     else if (avoid.windDirs.includes(windDir)) notes.push(`${windDir} wind is onshore${speedStr}`);
@@ -1242,11 +1260,18 @@ function updateBreakIndicators(forecast) {
     }
   });
 
-  // Best break banner
+  // Best break banner — prefer non-advanced breaks unless no good alternative
+  // Compute best non-advanced and best overall separately
+  const scores = BREAKS.map(b => ({ b, score: scoreBreak(b, forecast) }));
+  const bestNonAdv = scores.filter(s => !s.b.advanced).reduce((a, s) => s.score > a.score ? s : a, { score: -1 });
+  const bestAll    = scores.reduce((a, s) => s.score > a.score ? s : a, { score: -1 });
+  // Use non-advanced if within 1 point of overall best, otherwise show overall best with warning
+  const pick = (bestNonAdv.score >= bestAll.score - 1) ? bestNonAdv : bestAll;
   const banner = document.getElementById('bestBreakBanner');
-  if (banner && bestBreak && bestScore >= 5) {
-    const label = bestScore >= 7 ? '🔥 Firing' : '✓ Best option';
-    banner.textContent = `${label}: ${bestBreak.name} ${bestScore}/10`;
+  if (banner && pick.score >= 5) {
+    const isAdv = pick.b.advanced;
+    const label = pick.score >= 7 ? '🔥 Firing' : '✓ Best option';
+    banner.textContent = `${label}: ${pick.b.name} ${pick.score}/10${isAdv ? ' · advanced' : ''}`;
     banner.style.display = '';
   } else if (banner) {
     banner.style.display = 'none';
@@ -1300,7 +1325,6 @@ function getCurrentTide(tides) {
 
 ///////////////////////////////////////////////////
 function setStation(station) {
-  document.getElementById('logoSubtitle').textContent = station === 'noosa' ? 'Noosa' : 'Mooloolaba';  
   currentStation = station;
   document.getElementById('btnNoosa').classList.toggle('active', station === 'noosa');
   document.getElementById('btnMooloolaba').classList.toggle('active', station === 'mooloolaba');
@@ -1339,20 +1363,12 @@ async function loadData(forceRefresh = false) {
     document.getElementById('lastUpdated').innerHTML =
       `UPDATED<br>${h12}:${m}${ampm}`;
 
-    // Stale data check — warn if BOM forecast is more than 90 minutes old
+    // Always show BOM issue time for transparency
     if (data.forecast && data.forecast.issuedAt) {
       const issuedMatch = data.forecast.issuedAt.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
       if (issuedMatch) {
-        let issuedH = parseInt(issuedMatch[1]);
-        const issuedM = parseInt(issuedMatch[2]);
-        if (issuedMatch[3].toLowerCase() === 'pm' && issuedH !== 12) issuedH += 12;
-        if (issuedMatch[3].toLowerCase() === 'am' && issuedH === 12) issuedH = 0;
-        const issuedMins = issuedH * 60 + issuedM;
-        const nowMins = hours * 60 + parseInt(m);
-        const ageMins = (nowMins - issuedMins + 1440) % 1440;
-        if (ageMins > 90) {
-          document.getElementById('lastUpdated').innerHTML += `<br><span style="color:rgba(255,200,60,0.8);font-size:8px;">data ${ageMins >= 60 ? Math.floor(ageMins/60) + 'h' : ageMins + 'm'} old</span>`;
-        }
+        document.getElementById('lastUpdated').innerHTML +=
+          `<br><span style="color:var(--muted);font-size:8px;">BOM ${issuedMatch[1]}:${issuedMatch[2]}${issuedMatch[3].toLowerCase()}</span>`;
       }
     }
 
@@ -1468,11 +1484,23 @@ function shortDir(text) {
 }
 
 ///////////////////////////////////////////////////
-// Estimated surf (face) height from offshore Hm0 and break exposure factor
+// Estimated surf (face) height from offshore Hm0, break exposure, and swell direction
 // Calibrated: First Point exposure=0.32 → 2.8m offshore = 0.9m surf (Surfline, May 2026)
-function estimateSurfHeight(offshoreH, exposure) {
+// Direction multiplier: ideal angle = 1.0, one step off = 0.8, two steps off = 0.6
+function estimateSurfHeight(offshoreH, exposure, swellDir, breakData) {
   if (offshoreH === null || offshoreH === undefined || !exposure) return null;
-  return Math.round(offshoreH * exposure * 10) / 10;
+  let dirMultiplier = 1.0;
+  if (swellDir && breakData) {
+    const ideal = breakData.ideal?.swellDirs || [];
+    const acceptable = breakData.acceptable?.swellDirs || [];
+    if (ideal.includes(swellDir)) dirMultiplier = 1.0;
+    else if (acceptable.includes(swellDir)) dirMultiplier = 0.8;
+    else {
+      const minDist = Math.min(...ideal.map(d => dirDistance(swellDir, d)));
+      dirMultiplier = minDist <= 2 ? 0.6 : 0.4;
+    }
+  }
+  return Math.round(offshoreH * exposure * dirMultiplier * 10) / 10;
 }
 
 ///////////////////////////////////////////////////
@@ -1511,11 +1539,12 @@ function renderForecast(forecast, tideData, swellData) {
 
   // Synopsis
   const synopsisText = forecast.synopsis || '—';
-  const synopsisShort = synopsisText.length > 120 ? synopsisText.slice(0, 120) + '…' : synopsisText;
+  // Use first sentence as default, full text on expand
+  const synopsisFirst = synopsisText.match(/^[^.!?]+[.!?]/)?.[0]?.trim() || synopsisText;
   const synopsisEl = document.getElementById('synopsisCard');
-  synopsisEl.innerHTML = synopsisText.length > 120
-    ? `<span id="synopsisShort">${synopsisShort}</span><span id="synopsisFull" style="display:none">${synopsisText}</span>
-       <span onclick="toggleSynopsis()" style="color:var(--accent);cursor:pointer;font-size:10px;margin-left:4px;" id="synopsisToggle">more</span>`
+  synopsisEl.innerHTML = synopsisFirst.length < synopsisText.length
+    ? `<span id="synopsisShort">${synopsisFirst}</span><span id="synopsisFull" style="display:none"> ${synopsisText}</span>
+       <span onclick="toggleSynopsis()" style="color:var(--high);cursor:pointer;font-size:10px;margin-left:4px;font-style:normal;" id="synopsisToggle">more</span>`
     : synopsisText;
 
 
@@ -1597,7 +1626,7 @@ function renderForecast(forecast, tideData, swellData) {
         </div>
         <div class="condition-item">
           <div class="condition-label">Swell</div>
-          <div class="condition-value">${(() => { const dir = extractDir(shortDir(current.swell)) || shortDir(current.swell) || '—'; const h = extractHeight(current.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = (currentPeriod !== null && currentPeriod !== undefined) ? Number(currentPeriod).toFixed(0) + 's' : '—'; return `${dir} · ${hStr} · ${pStr}`; })()}${waveEnergyHtml}</div>
+          <div class="condition-value">${(() => { const dir = extractDir(shortDir(current.swell)) || shortDir(current.swell) || '—'; const h = extractHeight(current.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = (currentPeriod !== null && currentPeriod !== undefined) ? Number(currentPeriod).toFixed(0) + 's' : '—'; return dir + ' · ' + hStr + ' · ' + pStr; })()}${waveEnergyHtml}</div>
         </div>
         <div class="condition-item" id="surfHeightItem">
           <div class="condition-label">Surf</div>
@@ -1633,8 +1662,9 @@ function renderForecast(forecast, tideData, swellData) {
         </div>
         <div class="fc-row">
           <div class="fc-label">Swell</div>
-          <div class="fc-val">${(() => { const dir = extractDir(shortDir(day.swell)) || shortDir(day.swell) || '—'; const h = extractHeight(day.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = swellPeriod ? swellPeriod + 's' : '—'; return `${dir} · ${hStr} · ${pStr}`; })()}</div>
+          <div class="fc-val">${(() => { const dir = extractDir(shortDir(day.swell)) || shortDir(day.swell) || '—'; const h = extractHeight(day.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = swellPeriod ? swellPeriod + 's' : '—'; return dir + ' · ' + hStr + ' · ' + pStr; })()}</div>
         </div>
+        ${(() => { const b = BREAKS[currentBreak]; const h = extractHeight(day.swell); const d = extractDir(shortDir(day.swell)); const sH = estimateSurfHeight(h, b?.exposure, d, b); return sH !== null ? '<div class="fc-row"><div class="fc-label">Surf</div><div class="fc-val highlight fc-surf" data-offshore="' + (h||'') + '" data-dir="' + (d||'') + '">~' + sH.toFixed(1) + 'm</div></div>' : ''; })()}
         <div class="fc-row">
           <div class="fc-label">Sky</div>
           <div class="fc-val">${day.weather}</div>
@@ -1806,10 +1836,9 @@ function renderSwellChart(swellData) {
     }
   });
 
-  // "Now" marker — vertical line at current Brisbane time
-  const nowBrisbane = new Date(Date.now() + 10 * 60 * 60 * 1000);
-  const nowStr = nowBrisbane.toISOString().slice(0, 13);
-  const nowIdx = sampledTimes.findIndex(t => t >= nowStr);
+  // "Now" marker — Open-Meteo times are UTC, so compare to current UTC hour
+  const nowUtcStr = new Date().toISOString().slice(0, 13);
+  const nowIdx = sampledTimes.findIndex(t => t >= nowUtcStr);
   if (nowIdx > 0) {
     const nowX = xPos(nowIdx);
     ctx.beginPath();
@@ -1937,7 +1966,8 @@ async function loadNightMode() {
         <div class="forecast-card-body">
           <div class="fc-row"><div class="fc-label">Wind</div><div class="fc-val">${shortDir(day.winds)}</div></div>
           <div class="fc-row"><div class="fc-label">Seas</div><div class="fc-val">${shortDir(day.seas)}</div></div>
-          <div class="fc-row"><div class="fc-label">Swell</div><div class="fc-val">${(() => { const dir = extractDir(shortDir(day.swell)) || shortDir(day.swell) || '—'; const h = extractHeight(day.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = swellPeriod ? swellPeriod + 's' : '—'; return `${dir} · ${hStr} · ${pStr}`; })()}</div></div>
+          <div class="fc-row"><div class="fc-label">Swell</div><div class="fc-val">${(() => { const dir = extractDir(shortDir(day.swell)) || shortDir(day.swell) || '—'; const h = extractHeight(day.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = swellPeriod ? swellPeriod + 's' : '—'; return dir + ' · ' + hStr + ' · ' + pStr; })()}</div></div>
+          ${(() => { const b = BREAKS[currentBreak]; const h = extractHeight(day.swell); const d = extractDir(shortDir(day.swell)); const sH = estimateSurfHeight(h, b?.exposure, d, b); return sH !== null ? '<div class="fc-row"><div class="fc-label">Surf</div><div class="fc-val highlight fc-surf" data-offshore="' + (h||'') + '" data-dir="' + (d||'') + '">~' + sH.toFixed(1) + 'm</div></div>' : ''; })()}
           <div class="fc-row"><div class="fc-label">Sky</div><div class="fc-val">${day.weather}</div></div>
         </div>`;
       forecastRow.appendChild(card);
@@ -1965,7 +1995,11 @@ async function loadNightMode() {
           </div>
           <div class="condition-item">
             <div class="condition-label">Swell</div>
-            <div class="condition-value">${(() => { const dir = extractDir(shortDir(today.swell)) || shortDir(today.swell) || '—'; const h = extractHeight(today.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = nightPeriod !== null ? Math.round(nightPeriod) + 's' : '—'; return `${dir} · ${hStr} · ${pStr}`; })()}${nightEnergyHtml}</div>
+            <div class="condition-value">${(() => { const dir = extractDir(shortDir(today.swell)) || shortDir(today.swell) || '—'; const h = extractHeight(today.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = nightPeriod !== null ? Math.round(nightPeriod) + 's' : '—'; return dir + ' · ' + hStr + ' · ' + pStr; })()}${nightEnergyHtml}</div>
+          </div>
+          <div class="condition-item" id="surfHeightItem">
+            <div class="condition-label">Surf</div>
+            <div class="condition-value highlight" id="surfHeightValue">—</div>
           </div>
           <div class="condition-item">
             <div class="condition-label">Weather</div>
@@ -1976,11 +2010,11 @@ async function loadNightMode() {
 
     // Populate synopsis card
     const synopsisText = data.forecast.synopsis || '—';
-    const synopsisShort = synopsisText.length > 120 ? synopsisText.slice(0, 120) + '…' : synopsisText;
+    const synopsisFirst = synopsisText.match(/^[^.!?]+[.!?]/)?.[0]?.trim() || synopsisText;
     const synopsisEl = document.getElementById('synopsisCard');
-    synopsisEl.innerHTML = synopsisText.length > 120
-      ? `<span id="synopsisShort">${synopsisShort}</span><span id="synopsisFull" style="display:none">${synopsisText}</span>
-         <span onclick="toggleSynopsis()" style="color:var(--accent);cursor:pointer;font-size:10px;margin-left:4px;" id="synopsisToggle">more</span>`
+    synopsisEl.innerHTML = synopsisFirst.length < synopsisText.length
+      ? `<span id="synopsisShort">${synopsisFirst}</span><span id="synopsisFull" style="display:none"> ${synopsisText}</span>
+         <span onclick="toggleSynopsis()" style="color:var(--high);cursor:pointer;font-size:10px;margin-left:4px;font-style:normal;" id="synopsisToggle">more</span>`
       : synopsisText;
     document.getElementById('loadingEl').style.display = 'none';
     document.getElementById('content').classList.add('visible');
