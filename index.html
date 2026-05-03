@@ -586,9 +586,11 @@
 
   <div id="content" class="content">
     <div id="breakPhotoWrap" style="margin: 12px 20px 0; height: 140px; border-radius: 10px; overflow: hidden; position: relative;">
-      <img id="breakImg" src="" alt="" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block; transition: opacity 0.3s;">
+      <img id="breakImg" src="" alt="" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block; transition: opacity 0.3s, filter 0.4s;">
       <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(10,12,15,0.65) 0%, transparent 55%);"></div>
+      <div id="scoreOverlay" style="position:absolute;inset:0;transition:background 0.4s;pointer-events:none;"></div>
     </div>
+    <div id="bestBreakBanner" style="display:none;margin:10px 20px 0;padding:10px 14px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);border-radius:10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--high);letter-spacing:0.5px;"></div>
     <div class="synopsis-card" id="breakNotes"></div>
 
     <div id="warningBanner" class="warning-banner"></div>
@@ -597,9 +599,9 @@
       <span class="night-banner-inner">Live conditions resume at 4am &nbsp;&nbsp;·&nbsp;&nbsp; Live conditions resume at 4am &nbsp;&nbsp;·&nbsp;&nbsp; Live conditions resume at 4am</span>
     </div>
 
+    <div class="synopsis-card" id="synopsisCard"></div>
     <div class="section-label" id="currentConditionsLabel">CURRENT CONDITIONS</div>
     <div class="current-card" id="currentCard"></div>
-    <div class="synopsis-card" id="synopsisCard"></div>
 
     <div class="section-label">EXTENDED FORECAST</div>
     <div class="forecast-scroll">
@@ -669,6 +671,19 @@ const BREAK_IMGS = [
   'data:image/jpeg;base64,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'
 ];
 const _blobCache = {};
+let _blobCacheTime = Date.now();
+
+// Revoke blob URLs if page was hidden for >1 hour (memory hygiene)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    _blobCacheTime = Date.now();
+  } else if (Date.now() - _blobCacheTime > 60 * 60 * 1000) {
+    Object.keys(_blobCache).forEach(k => {
+      URL.revokeObjectURL(_blobCache[k]);
+      delete _blobCache[k];
+    });
+  }
+});
 function getBreakImg(index) {
   if (!_blobCache[index]) {
     const b64 = BREAK_IMGS[index];
@@ -690,6 +705,7 @@ const BREAKS = [
     notes: 'Beach break at the river mouth groyne. Best NE swell with S–SW offshore wind. Works at most tides but tends to be fast on low tide. Good learner wave on smaller days.',
     img: null,
     tide: { ideal: 'mid-high', avoid: 'low' },
+    exposure: 0.50, // Groyne: sheltered beach break
     ideal:      { swellDirs: ['NE', 'ENE', 'E'],         windDirs: ['S', 'SSW', 'SW', 'WSW'],              swellMin: 0.8, swellMax: 2.0, periodMin: 8  },
     acceptable: { swellDirs: ['NNE', 'ESE', 'SE'],      windDirs: ['W', 'SSE', 'SE'],                     swellMin: 0.5, swellMax: 2.5, periodMin: 6  },
     avoid:      { swellDirs: ['N', 'NW', 'S'],          windDirs: ['N', 'NNE', 'NE', 'ENE', 'E'],         swellMin: 0,   swellMax: 9,   periodMin: 0, windPenalty: 2  },
@@ -700,6 +716,7 @@ const BREAKS = [
     notes: 'Classic longboard right-hander at the end of Hastings St. Ideal ENE–E swell with S–SSW offshore wind. Needs size to wrap around the point. Sensitive to NE wind — anything from north quarters will ruin it.',
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
+    exposure: 0.32, // First Point: most sheltered, calibrated to Surfline (2.8m→0.9m)
     ideal:      { swellDirs: ['ENE', 'E', 'NE'],         windDirs: ['S', 'SSW', 'SW'],                     swellMin: 1.0, swellMax: 2.5, periodMin: 10 },
     acceptable: { swellDirs: ['ESE', 'NNE', 'SE'],      windDirs: ['SSE', 'SE', 'WSW', 'W'],              swellMin: 0.8, swellMax: 3.0, periodMin: 8  },
     avoid:      { swellDirs: ['N', 'NW', 'S'],          windDirs: ['N', 'NNE', 'NE', 'ENE', 'E'],         swellMin: 0,   swellMax: 9,   periodMin: 0, windPenalty: 3  },
@@ -710,6 +727,7 @@ const BREAKS = [
     notes: 'Powerful right-hand point — Boiling Pot takeoff is advanced only. Best ENE swell, SE–S offshore wind. More exposed than First Point, picks up more size. Low to mid tide best.',
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
+    exposure: 0.38, // Nationals: slightly more exposed than First Point
     ideal:      { swellDirs: ['ENE', 'E', 'NE'],         windDirs: ['SE', 'SSE', 'S'],                     swellMin: 1.2, swellMax: 3.0, periodMin: 10 },
     acceptable: { swellDirs: ['ESE', 'NNE', 'SE'],      windDirs: ['SSW', 'SW', 'ESE'],                   swellMin: 0.8, swellMax: 3.5, periodMin: 8  },
     avoid:      { swellDirs: ['N', 'NW', 'S'],          windDirs: ['N', 'NNE', 'NE', 'ENE', 'E', 'W'],   swellMin: 0,   swellMax: 9,   periodMin: 0, windPenalty: 2  },
@@ -720,6 +738,7 @@ const BREAKS = [
     notes: 'The jewel of the Noosa points. Long, fast rights off a bouldery headland — can barrel on lower tides. Best ENE–E swell with SE–S offshore wind. Low to mid tide. NE seabreezes kill it.',
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
+    exposure: 0.37, // Tea Tree: similar exposure to Nationals
     ideal:      { swellDirs: ['ENE', 'E', 'NE'],         windDirs: ['SE', 'SSE', 'S'],                     swellMin: 1.0, swellMax: 2.5, periodMin: 10 },
     acceptable: { swellDirs: ['ESE', 'NNE', 'SE'],      windDirs: ['SSW', 'SW', 'ESE'],                   swellMin: 0.8, swellMax: 3.0, periodMin: 8  },
     avoid:      { swellDirs: ['N', 'NW', 'S'],          windDirs: ['N', 'NNE', 'NE', 'ENE', 'E', 'W'],   swellMin: 0,   swellMax: 9,   periodMin: 0, windPenalty: 2  },
@@ -730,6 +749,7 @@ const BREAKS = [
     notes: 'Most exposed of the Noosa points — picks up the most swell and the most wind. Works with most swell directions and S winds. Good option when everywhere else is too small. Punchier but less perfect than Tea Tree.',
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
+    exposure: 0.45, // Granite Bay: most exposed of the points
     ideal:      { swellDirs: ['ENE', 'E', 'NE', 'NNE'], windDirs: ['S', 'SSE', 'SE', 'SSW'],              swellMin: 0.8, swellMax: 2.5, periodMin: 9  },
     acceptable: { swellDirs: ['ESE', 'N', 'NNW', 'SE'], windDirs: ['SW', 'W', 'ESE'],                    swellMin: 0.5, swellMax: 3.0, periodMin: 7  },
     avoid:      { swellDirs: ['S', 'NW'],               windDirs: ['N', 'NE', 'ENE', 'E'],                swellMin: 0,   swellMax: 9,   periodMin: 0, windPenalty: 1  },
@@ -740,6 +760,7 @@ const BREAKS = [
     notes: 'Open beach break facing east. Best E swell with W offshore wind. Works across most sizes and tides. Good alternative when the points are too small or too crowded.',
     img: null,
     tide: { ideal: 'mid-high', avoid: 'low' },
+    exposure: 0.60, // Sunshine Beach: open east-facing beach
     ideal:      { swellDirs: ['E', 'ESE', 'ENE'],        windDirs: ['W', 'WSW', 'WNW', 'SW'],             swellMin: 0.8, swellMax: 2.0, periodMin: 8  },
     acceptable: { swellDirs: ['SE', 'NE'],               windDirs: ['NW', 'SSW', 'S'],                    swellMin: 0.5, swellMax: 2.5, periodMin: 6  },
     avoid:      { swellDirs: ['N', 'NW', 'S', 'SW'],    windDirs: ['NE', 'ENE', 'E', 'ESE', 'SE', 'N'],  swellMin: 0,   swellMax: 9,   periodMin: 0, windPenalty: 3  },
@@ -756,8 +777,10 @@ function conditionNoteTomorrow(breakData, forecast) {
   const swellDir    = extractDir(shortDir(tomorrow.swell || ''));
   const windDir     = extractDir(shortDir(tomorrow.winds || ''));
   const swellHeight = extractHeight(shortDir(tomorrow.swell || ''));
-  const period      = forecast._periodTomorrow ?? null;
-  const tide        = forecast._tide ?? null; // tomorrowForecast._tide is the tomorrow tide object directly
+  // _periodTomorrow and _tide._tomorrow are attached to cachedData.forecast by renderAll.
+  // When called from setBreak, forecast IS cachedData.forecast so these are always available.
+  const period = forecast._periodTomorrow ?? null;
+  const tide   = forecast._tide ?? null; // tomorrowForecast._tide is the tomorrow tide object directly
   const notes = [];
 
   // Swell direction
@@ -825,8 +848,58 @@ function setBreak(index) {
   const imgEl = document.getElementById('breakImg');
   if (imgEl) imgEl.src = getBreakImg(index);
 
+  // Update surf height in current conditions card based on selected break exposure
+  const surfVal = document.getElementById('surfHeightValue');
+  if (surfVal && cachedData) {
+    const offshoreH = extractHeight(shortDir(cachedData.forecast.forecasts[0]?.swell || ''));
+    const surfH = estimateSurfHeight(offshoreH, b.exposure);
+    surfVal.innerHTML = surfH !== null
+      ? `~${surfH.toFixed(1)}m <span style="color:var(--muted);font-size:10px;">est. face at ${b.subtitle}</span>`
+      : '—';
+  }
+
   const score = cachedData ? scoreBreak(b, cachedData.forecast) : null;
   const note = cachedData ? conditionNote(b, cachedData.forecast) : '';
+
+  // Score-based photo overlay: desaturate + darken on poor conditions
+  const overlayEl = document.getElementById('scoreOverlay');
+  const imgElRef = document.getElementById('breakImg');
+  if (overlayEl && score !== null) {
+    if (score < 4) {
+      overlayEl.style.background = 'rgba(10,12,15,0.45)';
+      if (imgElRef) imgElRef.style.filter = 'saturate(0.3)';
+    } else if (score < 6) {
+      overlayEl.style.background = 'rgba(10,12,15,0.2)';
+      if (imgElRef) imgElRef.style.filter = 'saturate(0.7)';
+    } else {
+      overlayEl.style.background = 'transparent';
+      if (imgElRef) imgElRef.style.filter = 'saturate(1)';
+    }
+  }
+  // Historical context — compare today vs upcoming days
+  // Days beyond tomorrow lack Open-Meteo period/tide data, but we still score
+  // swell direction, height, and wind from BOM text for a fair comparison.
+  let contextStr = '';
+  if (cachedData && score !== null) {
+    const upcomingScores = (cachedData.forecast.forecasts || []).slice(1).map((day, i) => {
+      const f = {
+        forecasts: [day],
+        _period: i === 0 ? (cachedData.forecast._periodTomorrow ?? null) : null,
+        _tide:   i === 0 ? (cachedData.forecast._tide?._tomorrow ?? null) : null,
+        // For days 2+, BOM swell/wind text still gives direction + height → partial score
+      };
+      return scoreBreak(b, f);
+    });
+    const maxUpcoming = upcomingScores.length ? Math.max(...upcomingScores) : -Infinity;
+    if (upcomingScores.length > 0) {
+      if (score >= maxUpcoming) contextStr = ' · best in forecast';
+      else if (score < maxUpcoming - 1) {
+        const bestIdx = upcomingScores.indexOf(maxUpcoming);
+        const bestDay = cachedData.forecast.forecasts[bestIdx + 1]?.day || '';
+        contextStr = ` · better ${bestDay.toLowerCase()}`;
+      }
+    }
+  }
   const noteTomorrow = cachedData ? conditionNoteTomorrow(b, cachedData.forecast) : '';
   const tomorrowDay = cachedData && cachedData.forecast.forecasts[1] ? cachedData.forecast.forecasts[1].day : 'Tomorrow';
 
@@ -851,9 +924,13 @@ function setBreak(index) {
       <span style="color:#fff;">${b.notes}</span>
     </div>
     ${note ? `<br><span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">Conditions</span>
-    <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;">${score !== null ? score + '/10' : ''}</span>
-    <span onclick="copyConditions(this)" data-break="${b.name.replace(/"/g,'&quot;')}" data-score="${score}" title="Copy to clipboard" style="cursor:pointer;margin-left:8px;font-size:10px;opacity:0.5;" id="shareBtnIcon">⎘</span><br>
-    <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:8px;letter-spacing:0.5px;">swell dir · size · period · wind · tide</span><br>
+    <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;">${score !== null ? score + '/10' : ''}${contextStr}</span><br>
+    ${(() => {
+      const offshoreH = cachedData ? extractHeight(shortDir(cachedData.forecast.forecasts[0]?.swell || '')) : null;
+      const surfH = estimateSurfHeight(offshoreH, b.exposure);
+      return surfH !== null ? `<span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;">~${surfH.toFixed(1)}m surf · ${offshoreH.toFixed(1)}m offshore</span><br>` : '';
+    })()}
+    <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:8px;letter-spacing:0.5px;">swell dir · size · period · wind · tide · swell quality</span><br>
     <span style="color:#fff;font-style:normal;" id="conditionNoteText">${note}</span>` : ''}
     ${noteTomorrow ? `<br><br><span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">${tomorrowDay.toUpperCase()}</span>
     <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;">${scoreTomorrow !== null ? scoreTomorrow + '/10' : ''}</span>
@@ -872,35 +949,6 @@ function toggleSynopsis() {
   short.style.display  = isExpanded ? '' : 'none';
   full.style.display   = isExpanded ? 'none' : '';
   toggle.textContent   = isExpanded ? 'more' : 'less';
-}
-
-function copyConditions(el) {
-  const breakName = el.dataset.break;
-  const score = el.dataset.score;
-  const noteEl = document.getElementById('conditionNoteText');
-  const note = noteEl ? noteEl.textContent : '';
-  const text = `${breakName}: ${score}/10 — ${note}`;
-
-  const doFallback = () => {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
-    document.body.appendChild(ta);
-    ta.focus(); ta.select();
-    try { document.execCommand('copy'); } catch(e) {}
-    document.body.removeChild(ta);
-    el.textContent = '✓';
-    setTimeout(() => el.textContent = '⎘', 2000);
-  };
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => {
-      el.textContent = '✓';
-      setTimeout(() => el.textContent = '⎘', 2000);
-    }).catch(doFallback);
-  } else {
-    doFallback();
-  }
 }
 
 function toggleAbout(headerEl) {
@@ -938,16 +986,13 @@ function extractPeriod(text) {
 ///////////////////////////////////////////////////
   function extractHeight(text) {
     if (!text || typeof text !== 'string') return null;
-    // Match "1 to 1.5m", "1.5m", "1-1.5m", "around 1m" etc.
-    const match = text.match(/(\d+\.?\d*)\s*(?:to|-)\s*(\d+\.?\d*)\s*m/i)
-                  || text.match(/around\s+(\d+\.?\d*)\s*m/i)
-                  || text.match(/(\d+\.?\d*)\s*m/i);
+    // Strip cross-swell clauses to avoid picking up the secondary height
+    const primary = text.replace(/(?:with|and)\s+(?:moderate\s+)?cross[\s-]?swell[^.]*\.?/gi, '');
+    const match = primary.match(/(\d+\.?\d*)\s*(?:to|-)\s*(\d+\.?\d*)\s*m/i)
+                  || primary.match(/around\s+(\d+\.?\d*)\s*m/i)
+                  || primary.match(/(\d+\.?\d*)\s*m/i);
     if (!match) return null;
-    // Range form: match[1] and match[2] both present
-    if (match[2] !== undefined) {
-      return (parseFloat(match[1]) + parseFloat(match[2])) / 2;
-    }
-    // Single value (including "around X m" where X is match[1])
+    if (match[2] !== undefined) return (parseFloat(match[1]) + parseFloat(match[2])) / 2;
     return parseFloat(match[1]);
   }
 
@@ -1037,6 +1082,11 @@ function scoreBreak(breakData, forecast) {
     else if (windSpeedKts > 20) windSpeedPenalty = 1;
   }
 
+  // Cross-swell penalty — confused seas reduce wave quality
+  const swellTextLower = (current.swell || '').toLowerCase();
+  const hasCrossSwell = /cross.?swell|moderate cross|secondary swell|confused/i.test(swellTextLower);
+  const crossSwellPenalty = hasCrossSwell ? 1 : 0;
+
   // Swell height — up to 2 pts
   const heightPts = scoreHeight(swellHeight, ideal, acceptable);
 
@@ -1050,7 +1100,7 @@ function scoreBreak(breakData, forecast) {
   // Tide — up to 1 pt bonus / -1 penalty
   const tidePts = scoreTide(tide, breakData.tide);
 
-  return Math.max(0, Math.min(Math.round(swellPts + windPts + heightPts + periodPts + tidePts - windPenalty - windSpeedPenalty), 10));
+  return Math.max(0, Math.min(Math.round(swellPts + windPts + heightPts + periodPts + tidePts - windPenalty - windSpeedPenalty - crossSwellPenalty), 10));
 }
 
 ///////////////////////////////////////////////////
@@ -1127,6 +1177,11 @@ function conditionNote(breakData, forecast) {
     }
   }
 
+  // Cross-swell
+  if (/cross.?swell|moderate cross|secondary swell|confused/i.test(current.swell || '')) {
+    notes.push(`cross-swell will make it lumpy`);
+  }
+
   // Dawn patrol window (4am–7am Brisbane) — wind must be offshore AND light
   const brisbaneHour = new Date(Date.now() + 10 * 60 * 60 * 1000).getUTCHours();
   if (brisbaneHour >= 4 && brisbaneHour < 7 && windDir) {
@@ -1134,6 +1189,21 @@ function conditionNote(breakData, forecast) {
     const dawnSpeedKts = extractWindSpeedKts(current.winds || '');
     const windIsLight = dawnSpeedKts === null || dawnSpeedKts < 15;
     if (windIsOffshore && windIsLight) notes.push(`🌅 dawn patrol window — conditions likely clean before seabreeze`);
+  }
+
+  // Surf window — recommend best time if not already in it
+  if (brisbaneHour >= 7 && brisbaneHour < 18 && windDir) {
+    const windIsOffshore = ideal.windDirs.includes(windDir) || acceptable.windDirs.includes(windDir);
+    const speedKtsNow = extractWindSpeedKts(current.winds || '');
+    // If onshore now, suggest early morning tomorrow
+    if (!windIsOffshore && speedKtsNow !== null && speedKtsNow > 10) {
+      notes.push(`🕐 best window likely early morning before seabreeze fills in`);
+    }
+  }
+
+  // Dawn window passed — show grayed note until noon
+  if (brisbaneHour >= 7 && brisbaneHour < 12) {
+    notes.push(`🌅 dawn patrol window has passed for today`);
   }
 
   return notes.length > 0 ? notes.join(', ') + '.' : '';
@@ -1147,8 +1217,11 @@ function updateBreakIndicators(forecast) {
     btn.querySelectorAll('.break-dot').forEach(d => d.remove());
     btn.style.color = '';
   });
+
+  let bestScore = -1, bestBreak = null;
   BREAKS.forEach((b, i) => {
     const score = scoreBreak(b, forecast);
+    if (score > bestScore) { bestScore = score; bestBreak = b; }
     const btn = document.getElementById(`btn${i}`);
     btn.childNodes[0].textContent = `${b.subtitle}`;
     if (score >= 7) {
@@ -1168,6 +1241,16 @@ function updateBreakIndicators(forecast) {
       btn.title = 'Not ideal';
     }
   });
+
+  // Best break banner
+  const banner = document.getElementById('bestBreakBanner');
+  if (banner && bestBreak && bestScore >= 5) {
+    const label = bestScore >= 7 ? '🔥 Firing' : '✓ Best option';
+    banner.textContent = `${label}: ${bestBreak.name} ${bestScore}/10`;
+    banner.style.display = '';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
 }
 ///////////////////////////////////////////////////
 
@@ -1203,8 +1286,11 @@ function getCurrentTide(tides) {
   const mToNext = minsToNext % 60;
   const timeToNext = hToNext > 0 ? `${hToNext}h ${mToNext}m` : `${mToNext}m`;
 
+  // Cosine interpolation — tides are sinusoidal, not linear
+  const t = elapsed / totalMins;
+  const cosT = (1 - Math.cos(Math.PI * t)) / 2;
   return {
-    current: parseFloat(prev.height) + (parseFloat(next.height) - parseFloat(prev.height)) * (elapsed / totalMins),
+    current: parseFloat(prev.height) + (parseFloat(next.height) - parseFloat(prev.height)) * cosT,
     rising,
     next,
     timeToNext,
@@ -1246,13 +1332,29 @@ async function loadData(forceRefresh = false) {
 
     const now = new Date();
     const brisbaneTime = new Date(now.getTime() + 10 * 60 * 60 * 1000);
-    const timeStr = brisbaneTime.toISOString().slice(11, 16).replace(/^0/, '');
     const hours = brisbaneTime.getUTCHours();
     const ampm = hours < 12 ? 'am' : 'pm';
     const h12 = ((hours % 12) || 12);
     const m = brisbaneTime.toISOString().slice(14, 16);
     document.getElementById('lastUpdated').innerHTML =
       `UPDATED<br>${h12}:${m}${ampm}`;
+
+    // Stale data check — warn if BOM forecast is more than 90 minutes old
+    if (data.forecast && data.forecast.issuedAt) {
+      const issuedMatch = data.forecast.issuedAt.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
+      if (issuedMatch) {
+        let issuedH = parseInt(issuedMatch[1]);
+        const issuedM = parseInt(issuedMatch[2]);
+        if (issuedMatch[3].toLowerCase() === 'pm' && issuedH !== 12) issuedH += 12;
+        if (issuedMatch[3].toLowerCase() === 'am' && issuedH === 12) issuedH = 0;
+        const issuedMins = issuedH * 60 + issuedM;
+        const nowMins = hours * 60 + parseInt(m);
+        const ageMins = (nowMins - issuedMins + 1440) % 1440;
+        if (ageMins > 90) {
+          document.getElementById('lastUpdated').innerHTML += `<br><span style="color:rgba(255,200,60,0.8);font-size:8px;">data ${ageMins >= 60 ? Math.floor(ageMins/60) + 'h' : ageMins + 'm'} old</span>`;
+        }
+      }
+    }
 
   } catch (e) {
     document.getElementById('loadingEl').style.display = 'none';
@@ -1262,7 +1364,6 @@ async function loadData(forceRefresh = false) {
   } finally {
     btn.classList.remove('spinning');
   }
-  setBreak(0);
 }
 
 ///////////////////////////////////////////////////
@@ -1314,18 +1415,24 @@ function renderAll(data) {
   }
 
   updateBreakIndicators(data.forecast);
-  renderTides(data.tides[currentStation]);
-  requestAnimationFrame(() => renderSwellChart(data.swell));
 
   document.getElementById('loadingEl').style.display = 'none';
   document.getElementById('content').classList.add('visible');
 
-  // Animate forecast cards in
-  setTimeout(() => {
-    document.querySelectorAll('.forecast-card').forEach((card, i) => {
-      setTimeout(() => card.classList.add('visible'), i * 80);
-    });
-  }, 100);
+  // setBreak must run before rAF so currentBreak is set for surf height calc
+  setBreak(currentBreak || 0);
+
+  // Defer chart and tides to next frame so content is painted first
+  requestAnimationFrame(() => {
+    renderSwellChart(data.swell);
+    renderTides(data.tides[currentStation]);
+    // Animate forecast cards in
+    setTimeout(() => {
+      document.querySelectorAll('.forecast-card').forEach((card, i) => {
+        setTimeout(() => card.classList.add('visible'), i * 80);
+      });
+    }, 100);
+  });
 }
 
 ///////////////////////////////////////////////////
@@ -1361,11 +1468,22 @@ function shortDir(text) {
 }
 
 ///////////////////////////////////////////////////
+// Estimated surf (face) height from offshore Hm0 and break exposure factor
+// Calibrated: First Point exposure=0.32 → 2.8m offshore = 0.9m surf (Surfline, May 2026)
+function estimateSurfHeight(offshoreH, exposure) {
+  if (offshoreH === null || offshoreH === undefined || !exposure) return null;
+  return Math.round(offshoreH * exposure * 10) / 10;
+}
+
+///////////////////////////////////////////////////
 // Extract wind speed from BOM text
 function extractWindSpeedKts(text) {
   const s = shortDir(text);
   const range = s.match(/(\d+)\s*to\s*(\d+)\s*kts/);
   if (range) return (parseInt(range[1]) + parseInt(range[2])) / 2;
+  // Handle "below 15 knots", "around 20 knots", "up to 25 knots"
+  const qualified = s.match(/(?:below|around|up to|about)\s+(\d+)\s*kts/i);
+  if (qualified) return parseInt(qualified[1]);
   const single = s.match(/(\d+)\s*kts/);
   if (single) return parseInt(single[1]);
   return null;
@@ -1479,7 +1597,11 @@ function renderForecast(forecast, tideData, swellData) {
         </div>
         <div class="condition-item">
           <div class="condition-label">Swell</div>
-          <div class="condition-value">${extractDir(shortDir(current.swell)) || shortDir(current.swell)}${currentPeriod !== null && currentPeriod !== undefined ? ' · ' + Number(currentPeriod).toFixed(1) + 's' : ''}${waveEnergyHtml}</div>
+          <div class="condition-value">${(() => { const dir = extractDir(shortDir(current.swell)) || shortDir(current.swell) || '—'; const h = extractHeight(current.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = (currentPeriod !== null && currentPeriod !== undefined) ? Number(currentPeriod).toFixed(0) + 's' : '—'; return `${dir} · ${hStr} · ${pStr}`; })()}${waveEnergyHtml}</div>
+        </div>
+        <div class="condition-item" id="surfHeightItem">
+          <div class="condition-label">Surf</div>
+          <div class="condition-value highlight" id="surfHeightValue">—</div>
         </div>
         <div class="condition-item">
           <div class="condition-label">Weather</div>
@@ -1511,7 +1633,7 @@ function renderForecast(forecast, tideData, swellData) {
         </div>
         <div class="fc-row">
           <div class="fc-label">Swell</div>
-          <div class="fc-val">${shortDir(day.swell)}${swellPeriod ? ' · ' + swellPeriod + 's' : ''}</div>
+          <div class="fc-val">${(() => { const dir = extractDir(shortDir(day.swell)) || shortDir(day.swell) || '—'; const h = extractHeight(day.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = swellPeriod ? swellPeriod + 's' : '—'; return `${dir} · ${hStr} · ${pStr}`; })()}</div>
         </div>
         <div class="fc-row">
           <div class="fc-label">Sky</div>
@@ -1684,6 +1806,41 @@ function renderSwellChart(swellData) {
     }
   });
 
+  // "Now" marker — vertical line at current Brisbane time
+  const nowBrisbane = new Date(Date.now() + 10 * 60 * 60 * 1000);
+  const nowStr = nowBrisbane.toISOString().slice(0, 13);
+  const nowIdx = sampledTimes.findIndex(t => t >= nowStr);
+  if (nowIdx > 0) {
+    const nowX = xPos(nowIdx);
+    ctx.beginPath();
+    ctx.moveTo(nowX, pad.top);
+    ctx.lineTo(nowX, H - pad.bottom);
+    ctx.strokeStyle = 'rgba(0,212,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = `${8 * dpr}px DM Mono, monospace`;
+    ctx.fillStyle = 'rgba(0,212,255,0.6)';
+    ctx.textAlign = 'center';
+    ctx.fillText('NOW', nowX, pad.top + 8);
+
+    // Trend: compare next 12h vs next 12–24h wave heights
+    const next12 = sampledWave.slice(nowIdx, nowIdx + 2);
+    const next24 = sampledWave.slice(nowIdx + 2, nowIdx + 4);
+    if (next12.length && next24.length) {
+      const avg12 = next12.reduce((a, b) => a + b, 0) / next12.length;
+      const avg24 = next24.reduce((a, b) => a + b, 0) / next24.length;
+      const diff = avg24 - avg12;
+      const trendLabel = diff > 0.1 ? '↑ building' : diff < -0.1 ? '↓ fading' : '→ holding';
+      const trendColor = diff > 0.1 ? 'rgba(0,229,160,0.8)' : diff < -0.1 ? 'rgba(255,100,100,0.8)' : 'rgba(255,255,255,0.4)';
+      ctx.font = `${8 * dpr}px DM Mono, monospace`;
+      ctx.fillStyle = trendColor;
+      ctx.textAlign = 'left';
+      ctx.fillText(trendLabel, nowX + 4, pad.top + 8);
+    }
+  }
+
   // Day labels
   const labelsEl = document.getElementById('chartLabels');
   const uniqueDays = [...new Set(sampledTimes.map(t =>
@@ -1732,7 +1889,10 @@ async function loadNightMode() {
     let nightWindWavePeriod = null;
     if (data.swell && data.swell.hourly) {
       const brisbaneDate = new Date(Date.now() + 10 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const eveningStr = `${brisbaneDate}T17`; // 17:00 Brisbane = last active hour
+      // 17:00 Brisbane time = 07:00 UTC (AEST is UTC+10)
+      const eveningDate = new Date(Date.now() + 10 * 60 * 60 * 1000);
+      eveningDate.setUTCHours(7, 0, 0, 0); // 07:00 UTC = 17:00 Brisbane
+      const eveningStr = eveningDate.toISOString().slice(0, 13);
       const tomorrowStr = new Date(Date.now() + (10 + 24) * 60 * 60 * 1000).toISOString().slice(0, 13);
       const times = data.swell.hourly.time;
       const periodArr  = data.swell.hourly.swell_wave_period || data.swell.hourly.wave_period || null;
@@ -1777,7 +1937,7 @@ async function loadNightMode() {
         <div class="forecast-card-body">
           <div class="fc-row"><div class="fc-label">Wind</div><div class="fc-val">${shortDir(day.winds)}</div></div>
           <div class="fc-row"><div class="fc-label">Seas</div><div class="fc-val">${shortDir(day.seas)}</div></div>
-          <div class="fc-row"><div class="fc-label">Swell</div><div class="fc-val">${shortDir(day.swell)}${swellPeriod ? ' · ' + swellPeriod + 's' : ''}</div></div>
+          <div class="fc-row"><div class="fc-label">Swell</div><div class="fc-val">${(() => { const dir = extractDir(shortDir(day.swell)) || shortDir(day.swell) || '—'; const h = extractHeight(day.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = swellPeriod ? swellPeriod + 's' : '—'; return `${dir} · ${hStr} · ${pStr}`; })()}</div></div>
           <div class="fc-row"><div class="fc-label">Sky</div><div class="fc-val">${day.weather}</div></div>
         </div>`;
       forecastRow.appendChild(card);
@@ -1805,7 +1965,7 @@ async function loadNightMode() {
           </div>
           <div class="condition-item">
             <div class="condition-label">Swell</div>
-            <div class="condition-value">${extractDir(shortDir(today.swell)) || shortDir(today.swell)}${nightPeriod !== null ? ' · ' + Number(nightPeriod).toFixed(1) + 's' : ''}${nightEnergyHtml}</div>
+            <div class="condition-value">${(() => { const dir = extractDir(shortDir(today.swell)) || shortDir(today.swell) || '—'; const h = extractHeight(today.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : '—'; const pStr = nightPeriod !== null ? Math.round(nightPeriod) + 's' : '—'; return `${dir} · ${hStr} · ${pStr}`; })()}${nightEnergyHtml}</div>
           </div>
           <div class="condition-item">
             <div class="condition-label">Weather</div>
@@ -1841,6 +2001,9 @@ async function loadNightMode() {
 
     // Show night banner above current conditions
     document.getElementById('nightBanner').style.display = '';
+    // Hide best break banner (stale daytime data)
+    const bestBanner = document.getElementById('bestBreakBanner');
+    if (bestBanner) bestBanner.style.display = 'none';
     document.getElementById('currentConditionsLabel').textContent = 'TODAY\'S CONDITIONS';
 
   } catch (e) {
@@ -1857,8 +2020,12 @@ async function loadNightMode() {
 if (typeof ResizeObserver !== 'undefined') {
   const chartContainer = document.getElementById('swellChart')?.parentElement;
   if (chartContainer) {
+    let _resizeTimer;
     new ResizeObserver(() => {
-      if (cachedData && cachedData.swell) requestAnimationFrame(() => renderSwellChart(cachedData.swell));
+      clearTimeout(_resizeTimer);
+      _resizeTimer = setTimeout(() => {
+        if (cachedData && cachedData.swell) requestAnimationFrame(() => renderSwellChart(cachedData.swell));
+      }, 150);
     }).observe(chartContainer);
   }
 }
