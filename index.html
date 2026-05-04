@@ -908,7 +908,7 @@ function setBreak(index) {
     });
     const maxUpcoming = upcomingScores.length ? Math.max(...upcomingScores) : -Infinity;
     if (upcomingScores.length > 0) {
-      if (score >= maxUpcoming) contextStr = ' · best in forecast';
+      if (score > maxUpcoming + 1) contextStr = ' · best in forecast';
       else if (score < maxUpcoming - 1) {
         const bestIdx = upcomingScores.indexOf(maxUpcoming);
         const bestDay = cachedData.forecast.forecasts[bestIdx + 1]?.day || '';
@@ -942,8 +942,11 @@ function setBreak(index) {
   let aboutOpen = document.getElementById('breakNotes').__aboutOpen || false;
 
   document.getElementById('breakNotes').innerHTML =
-    `${note ? `<span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">Conditions</span>
-    <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;">${score !== null ? score + '/10' : ''}${contextStr}</span><br>
+    `${note ? `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:48px;line-height:1;color:${score >= 7 ? 'var(--high)' : score >= 5 ? 'var(--accent)' : 'var(--muted)'};">${score ?? '—'}</span>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--muted);line-height:1;">/10</span>
+      <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:4px;">${contextStr}</span>
+    </div>
     <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:8px;letter-spacing:0.5px;">swell dir · size · period · wind · tide · swell quality</span><br>
     <span style="color:#fff;font-style:normal;" id="conditionNoteText">${note}</span>` : ''}
     ${noteTomorrow ? `<br><br><span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">${tomorrowDay.toUpperCase()}</span>
