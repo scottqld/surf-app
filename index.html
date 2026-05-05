@@ -703,7 +703,7 @@
   <div id="content" class="content">
     <!-- TAB: CONDITIONS -->
     <div class="tab-section active" id="tab-conditions">
-    <div id="breakPhotoWrap" style="margin: 12px 20px 0; height: 160px; border-radius: 10px; overflow: hidden; position: relative;">
+    <div id="breakPhotoWrap" style="margin: 12px 20px 0; height: 190px; border-radius: 10px; overflow: hidden; position: relative;">
       <img id="breakImg" src="" alt="" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block; transition: opacity 0.3s, filter 0.4s;">
       <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(10,12,15,0.65) 0%, transparent 55%);pointer-events:none;"></div>
       <div id="scoreOverlay" style="position:absolute;inset:0;transition:background 0.4s;pointer-events:none;"></div>
@@ -722,6 +722,10 @@
     <div class="forecast-scroll">
       <div class="forecast-row" id="forecastRow"></div>
     </div>
+    </div>
+
+    <!-- TAB: PLANNER -->
+    <div class="tab-section" id="tab-planner">
     <div class="section-label">SWELL TREND — 7 DAYS</div>
     <div class="chart-container">
       <div class="chart-title">
@@ -744,10 +748,6 @@
       <button id="btnMooloolaba" class="station-btn" onclick="setStation('mooloolaba')" style="font-size:10px;padding:4px 10px;">Mooloolaba</button>
     </div>
     <div class="tides-container" id="tidesContainer"></div>
-    </div>
-
-    <!-- TAB: PLANNER -->
-    <div class="tab-section" id="tab-planner">
     <div class="section-label">BEST SESSIONS THIS WEEK</div>
     <div id="sessionPlanner" style="padding:0 20px 20px;"></div>
     </div>
@@ -1071,8 +1071,11 @@ function setBreak(index) {
       if (score > maxUpcoming + 1) contextStr = ' · best in forecast';
       else if (score < maxUpcoming - 1) {
         const bestIdx = upcomingScores.indexOf(maxUpcoming);
-        const bestDay = cachedData.forecast.forecasts[bestIdx + 1]?.day || '';
-        contextStr = ` · better ${bestDay.toLowerCase()}`;
+        const rawDay = cachedData.forecast.forecasts[bestIdx + 1]?.day || '';
+        // Skip vague BOM day names that don't give useful timing info
+        const skipDays = ['today', 'tonight', 'remainder'];
+        const bestDay = skipDays.some(s => rawDay.toLowerCase().includes(s)) ? '' : rawDay;
+        if (bestDay) contextStr = ` · better ${bestDay.toLowerCase()}`;
       }
     }
     // 7-day swell context from chart data — above/below average
@@ -1087,9 +1090,6 @@ function setBreak(index) {
       }
     }
   }
-  const noteTomorrow = cachedData ? conditionNoteTomorrow(b, cachedData.forecast) : '';
-  const tomorrowDay = cachedData && cachedData.forecast.forecasts[1] ? cachedData.forecast.forecasts[1].day : 'Tomorrow';
-
   // Fade out breakNotes before updating
   const breakNotesEl = document.getElementById('breakNotes');
   breakNotesEl.style.opacity = '0';
@@ -1100,15 +1100,12 @@ function setBreak(index) {
 
   // Tomorrow tide comes from renderAll via cachedData.forecast._tide._tomorrow
   const tomorrowTideFromCache = cachedData?.forecast?._tide?._tomorrow ?? null;
-  const tomorrowForecast = cachedData && cachedData.forecast.forecasts[1]
-    ? { forecasts: [cachedData.forecast.forecasts[1]], _period: cachedData.forecast._periodTomorrow ?? null, _tide: tomorrowTideFromCache } : null;
-  const scoreTomorrow = tomorrowForecast ? scoreBreak(b, tomorrowForecast) : null;
-
   let aboutOpen = _aboutOpen;
 
   document.getElementById('breakNotes').innerHTML =
     `${note ? `<span style="color:#fff;font-style:normal;" id="conditionNoteText">${note}</span>` : ''}
-    ${morningNote || afternoonNote ? `
+    ${contextStr ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:5px;">${contextStr.replace(/^ · /, '')}</div>` : ''}
+    ${(morningNote || afternoonNote) && score >= 4 ? `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
       ${morningNote ? `<div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:8px 10px;">
         <div style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--muted);margin-bottom:4px;">MORNING</div>
@@ -1428,8 +1425,9 @@ function conditionNote(breakData, forecast) {
     }
   }
 
-  // Cross-swell
-  if (/cross.?swell|moderate cross|secondary swell|confused/i.test(current.swell || '')) {
+  // Cross-swell — only for exposed breaks; sheltered point breaks filter secondary swell
+  const isExposed = !breakData.pointBreak || breakData.exposure > 0.44;
+  if (isExposed && /cross.?swell|moderate cross|secondary swell|confused/i.test(current.swell || '')) {
     notes.push(`cross-swell will make it lumpy`);
   }
 
@@ -1447,23 +1445,36 @@ function conditionNote(breakData, forecast) {
     }
   }
 
-  // Morning vs afternoon assessment based on Noosa's typical seabreeze pattern
+  // Morning vs afternoon assessment — break-specific based on wind direction for THIS break
+  // and Noosa's typical NE seabreeze pattern (develops ~10–11am most days)
   const windIsOffshore = windDir && (ideal.windDirs.includes(windDir) || acceptable.windDirs.includes(windDir));
   const windIsOnshore  = windDir && avoid.windDirs.includes(windDir);
   const speedKts2 = extractWindSpeedKts(current.winds || '');
   const windIsLight = speedKts2 === null || speedKts2 < 12;
 
+  // Typical Noosa seabreeze is NE — check if that would be offshore or onshore for this break
+  const neIsOffshore = ideal.windDirs.includes('NE') || acceptable.windDirs.includes('NE');
+  const neIsOnshore  = avoid.windDirs.includes('NE') || avoid.windDirs.includes('ENE') || avoid.windDirs.includes('NNE');
+
   let morningNote = '';
   if (windIsOffshore && windIsLight) morningNote = '🌅 Glassy and clean — get in early before the seabreeze';
-  else if (windIsOffshore) morningNote = '🌅 Offshore — worth an early session';
-  else if (windIsLight) morningNote = '🌅 Light winds — may be clean early before seabreeze';
-  else if (windIsOnshore) morningNote = '🌅 Already onshore — unlikely to improve through the day';
-  else morningNote = '🌅 Cross-shore — check at dawn for best chance';
+  else if (windIsOffshore) morningNote = '🌅 Offshore — worth an early session before wind builds';
+  else if (windIsLight) morningNote = '🌅 Light winds — may be clean early before seabreeze kicks in';
+  else if (windIsOnshore) morningNote = '🌅 Already onshore — conditions unlikely to improve through the day';
+  else morningNote = '🌅 Cross-shore — check at dawn for the cleanest window';
 
   let afternoonNote = '';
-  if (windIsOffshore && windIsLight) afternoonNote = '☀️ NE seabreeze may develop mid-morning — check before heading out';
-  else if (windIsOnshore) afternoonNote = '☀️ Onshore expected — surface likely choppy and bumpy';
-  else afternoonNote = '☀️ Seabreeze likely to build through the afternoon';
+  if (neIsOnshore) {
+    // NE seabreeze is onshore for this break (e.g. First Point, Tea Tree, Nationals)
+    if (windIsOffshore) afternoonNote = '☀️ NE seabreeze will likely turn it onshore by mid-morning — go early';
+    else afternoonNote = '☀️ NE seabreeze expected — choppy and onshore this afternoon';
+  } else if (neIsOffshore) {
+    // NE seabreeze is cross-offshore for this break — less damaging than fully onshore
+    afternoonNote = '☀️ NE seabreeze cross-offshore — less impactful than fully onshore breaks';
+  } else {
+    if (windIsOnshore) afternoonNote = '☀️ Onshore conditions expected to continue — surface choppy';
+    else afternoonNote = '☀️ Seabreeze may develop mid-morning — check conditions before heading out';
+  }
 
   return {
     notes: notes.length > 0 ? notes.join(', ') + '.' : '',
@@ -1675,10 +1686,21 @@ async function loadData(forceRefresh = false) {
 ///////////////////////////////////////////////////
 // Session planner — find the top 3 sessions across all breaks and forecast days
 function getBestTimeHint(b, dayForecast) {
-  // Point breaks prefer morning before seabreeze; beach breaks more flexible
-  if (b.pointBreak) return 'Best early morning';
-  if (b.name === 'Sunshine Beach') return 'Morning or evening';
-  return 'Check conditions';
+  const tide = dayForecast._tide;
+  if (b.pointBreak) {
+    // Point breaks prefer low-mid tide and morning offshore wind
+    if (b.tide?.ideal === 'low-mid') {
+      if (tide && tide.current >= 1.2) return '⏳ Tide high now — better later as it drops';
+      return '🌅 Best early morning before seabreeze';
+    }
+    return '🌅 Best early morning before seabreeze';
+  }
+  if (b.name === 'Sunshine Beach') {
+    // Beach break — morning offshore, evening after seabreeze dies
+    return '🌅 Morning or evening (avoids seabreeze)';
+  }
+  if (b.name === 'Double Island') return '🚗 4WD required — plan ahead';
+  return '🌅 Best early morning';
 }
 
 function renderSessionPlanner(forecast, swell) {
@@ -1700,10 +1722,20 @@ function renderSessionPlanner(forecast, swell) {
     });
   });
 
-  // Sort by score desc, dedupe to one entry per day (best break that day)
+  // Sort: soonest ≥6 session first, then by score for remaining slots
+  // This prioritises near-term good days over a perfect day at the end of the week
   sessions.sort((a, b) => b.score - a.score);
   const seenDays = new Set();
   const top = [];
+
+  // Pass 1: grab the soonest session scoring ≥6
+  const soonestGood = sessions
+    .slice() // keep original sort
+    .sort((a, b) => a.dayIdx - b.dayIdx || b.score - a.score)
+    .find(s => s.score >= 6);
+  if (soonestGood) { top.push(soonestGood); seenDays.add(soonestGood.dayIdx); }
+
+  // Pass 2: fill remaining slots with highest-scoring days not yet seen
   for (const s of sessions) {
     if (top.length >= 3) break;
     if (!seenDays.has(s.dayIdx)) { seenDays.add(s.dayIdx); top.push(s); }
@@ -1729,7 +1761,7 @@ function renderSessionPlanner(forecast, swell) {
     const adv = s.break.advanced ? ' · advanced' : s.break.intermediateAdvanced ? ' · intermediate+' : '';
     const timeHint = getBestTimeHint(s.break, s.dayForecast);
     const isLast = i === displaySessions.length - 1;
-    return `<div onclick="setBreak(${s.breakIdx});window.scrollTo({top:0,behavior:'smooth'})" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;${isLast ? '' : 'border-bottom:1px solid var(--border);'}cursor:pointer;">
+    return `<div onclick="setBreak(${s.breakIdx});switchTab('conditions');" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;${isLast ? '' : 'border-bottom:1px solid var(--border);'}cursor:pointer;">
       <div>
         <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;">${s.day.toUpperCase()}${adv}</div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#fff;line-height:1.2;">${s.break.name}</div>
@@ -2615,6 +2647,9 @@ function switchTab(tab) {
   document.getElementById(`tabBtn-${tab}`)?.classList.add('active');
   const toggleWrap = document.querySelector('.station-toggle-wrap');
   if (toggleWrap) toggleWrap.style.display = tab === 'conditions' ? '' : 'none';
+  if (tab === 'planner' && cachedData?.swell) {
+    setTimeout(() => renderSwellChart(cachedData.swell), 50);
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
