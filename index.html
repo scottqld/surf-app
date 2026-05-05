@@ -595,7 +595,7 @@
   <div id="errorEl" style="display:none"></div>
 
   <div id="content" class="content">
-    <div id="breakPhotoWrap" style="margin: 12px 20px 0; height: 140px; border-radius: 10px; overflow: hidden; position: relative;">
+    <div id="breakPhotoWrap" style="margin: 12px 20px 0; height: 160px; border-radius: 10px; overflow: hidden; position: relative;">
       <img id="breakImg" src="" alt="" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block; transition: opacity 0.3s, filter 0.4s;">
       <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(10,12,15,0.65) 0%, transparent 55%);pointer-events:none;"></div>
       <div id="scoreOverlay" style="position:absolute;inset:0;transition:background 0.4s;pointer-events:none;"></div>
@@ -766,7 +766,7 @@ const BREAKS = [
     notes: 'Most exposed of the Noosa points — picks up the most swell and the most wind. Works with most swell directions and S winds. Good option when everywhere else is too small. Punchier but less perfect than Tea Tree.',
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
-    advanced: true, // Most exposed, powerful — intermediate to advanced
+    intermediateAdvanced: true, // More exposed/powerful but not expert-only like Nationals
     pointBreak: true,
     exposure: 0.45, // Granite Bay: most exposed of the points
     ideal:      { swellDirs: ['ENE', 'E', 'NE', 'NNE'], windDirs: ['S', 'SSE', 'SE', 'SSW'],              swellMin: 0.7, swellMax: 1.2, periodMin: 9  },
@@ -899,7 +899,7 @@ function setBreak(index) {
         const scoreBadge = card.querySelector('.fc-score-badge');
         const dayForecast = {
           forecasts: [day],
-          _period: dayIdx === 0 ? (forecast._periodTomorrow ?? null) : null,
+          _period: forecast._periodByDay ? (forecast._periodByDay[dayIdx + 1] ?? null) : (dayIdx === 0 ? (forecast._periodTomorrow ?? null) : null),
           _tide:   dayIdx === 0 ? (forecast._tide?._tomorrow ?? null) : null,
         };
         const dayScore = scoreBreak(b, dayForecast);
@@ -946,7 +946,7 @@ function setBreak(index) {
     const upcomingScores = (cachedData.forecast.forecasts || []).slice(1).map((day, i) => {
       const f = {
         forecasts: [day],
-        _period: i === 0 ? (cachedData.forecast._periodTomorrow ?? null) : null,
+        _period: cachedData.forecast._periodByDay ? (cachedData.forecast._periodByDay[i + 1] ?? null) : (i === 0 ? (cachedData.forecast._periodTomorrow ?? null) : null),
         _tide:   i === 0 ? (cachedData.forecast._tide?._tomorrow ?? null) : null,
         // For days 2+, BOM swell/wind text still gives direction + height → partial score
       };
@@ -990,7 +990,7 @@ function setBreak(index) {
     ? { forecasts: [cachedData.forecast.forecasts[1]], _period: cachedData.forecast._periodTomorrow ?? null, _tide: tomorrowTideFromCache } : null;
   const scoreTomorrow = tomorrowForecast ? scoreBreak(b, tomorrowForecast) : null;
 
-  let aboutOpen = document.getElementById('breakNotes').__aboutOpen || false;
+  let aboutOpen = _aboutOpen;
 
   document.getElementById('breakNotes').innerHTML =
     `${note ? `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
@@ -1012,7 +1012,6 @@ function setBreak(index) {
       <span style="color:#fff;">${b.notes}</span>
     </div>`;
 
-  document.getElementById('breakNotes').__aboutOpen = aboutOpen;
   requestAnimationFrame(() => { breakNotesEl.style.opacity = '1'; });
 }
 
@@ -1043,14 +1042,15 @@ function toggleSynopsis() {
   }
 }
 
+let _aboutOpen = false;
+
 function toggleAbout(headerEl) {
-  const card = document.getElementById('breakNotes');
   const body = document.getElementById('aboutBody');
   const chevron = document.getElementById('aboutChevron');
   const isOpen = body.style.display !== 'none';
   body.style.display = isOpen ? 'none' : 'block';
   chevron.textContent = isOpen ? '▼' : '▲';
-  card.__aboutOpen = !isOpen;
+  _aboutOpen = !isOpen;
 }
 
 ///////////////////////////////////////////////////
@@ -1172,7 +1172,7 @@ function scoreBreak(breakData, forecast) {
     // Physical height (no period mult) used for size cap — keeps cap honest
     // Period-adjusted height only used for swellMin/Max range check (not currently used)
     let periodMult = 1.0;
-    if (period !== null && period !== undefined && breakData.pointBreak) {
+    if (period !== null && period !== undefined && (breakData.pointBreak || breakData.name === 'Sunshine Beach')) {
       if (period >= 14)      periodMult = 1.15;
       else if (period >= 11) periodMult = 1.05;
       else if (period <= 8)  periodMult = 0.85;
@@ -1235,7 +1235,7 @@ function scoreBreak(breakData, forecast) {
   if (breakData.sizeCap !== undefined) sizeCap = Math.min(sizeCap, breakData.sizeCap);
 
   const hardCap = breakData.maxScore ?? 10;
-  return Math.max(0, Math.min(Math.round(raw), sizeCap, hardCap));
+  return Math.min(Math.max(0, Math.round(raw)), sizeCap, hardCap);
 }
 
 ///////////////////////////////////////////////////
@@ -1317,13 +1317,17 @@ function conditionNote(breakData, forecast) {
     notes.push(`cross-swell will make it lumpy`);
   }
 
-  // Dawn patrol window (4am–7am Brisbane) — wind must be offshore AND light
+  // Dawn patrol window (4am–7am Brisbane) — wind must be offshore AND light AND tide favourable
   const brisbaneHour = new Date(Date.now() + 10 * 60 * 60 * 1000).getUTCHours();
   if (brisbaneHour >= 4 && brisbaneHour < 7 && windDir) {
     const windIsOffshore = ideal.windDirs.includes(windDir) || acceptable.windDirs.includes(windDir);
     const dawnSpeedKts = extractWindSpeedKts(current.winds || '');
     const windIsLight = dawnSpeedKts === null || dawnSpeedKts < 15;
-    if (windIsOffshore && windIsLight) notes.push(`🌅 dawn patrol window — conditions likely clean before seabreeze`);
+    if (windIsOffshore && windIsLight) {
+      const tideBad = tide && avoid.tide && avoid.tide === 'low' && tide.current < 0.5;
+      if (tideBad) notes.push(`🌅 dawn patrol window — but tide is low (${tide.current.toFixed(1)}m), wait for mid tide`);
+      else notes.push(`🌅 dawn patrol window — conditions likely clean before seabreeze`);
+    }
   }
 
   // Surf window — recommend best time if not already in it
@@ -1378,23 +1382,43 @@ function updateBreakIndicators(forecast) {
   });
 
   // Best break banner — prefer non-advanced breaks unless no good alternative
-  // Compute best non-advanced and best overall separately
-  const scores = BREAKS.map(b => ({ b, score: scoreBreak(b, forecast) }));
-  const bestNonAdv = scores.filter(s => !s.b.advanced).reduce((a, s) => s.score > a.score ? s : a, { score: -1 });
-  const bestAll    = scores.reduce((a, s) => s.score > a.score ? s : a, { score: -1 });
-  // Use non-advanced if within 1 point of overall best, otherwise show overall best with warning
-  const pick = (bestNonAdv.score >= bestAll.score - 1) ? bestNonAdv : bestAll;
+  // intermediateAdvanced breaks (Granite Bay) are excluded from advanced filter
+  const scores = BREAKS.map((b, idx) => ({ b, idx, score: scoreBreak(b, forecast) }));
+  const nonAdv = scores.filter(s => !s.b.advanced && !(s.b.maxScore && s.score >= s.b.maxScore));
+  const all    = scores.filter(s => !(s.b.maxScore && s.score >= s.b.maxScore));
+  const bestNonAdv = nonAdv.length ? nonAdv.reduce((a, s) => s.score > a.score ? s : a, { score: -1 }) : { score: -1 };
+  const bestAll    = all.length    ? all.reduce((a, s) => s.score > a.score ? s : a, { score: -1 })    : scores.reduce((a, s) => s.score > a.score ? s : a, { score: -1 });
+  const pick = (bestNonAdv.score >= bestAll.score - 2) ? bestNonAdv : bestAll;
   const banner = document.getElementById('bestBreakBanner');
   if (banner && pick.score >= 5) {
-    const isAdv = pick.b.advanced;
-    const label = pick.score >= 7 ? '🔥 Firing' : '✓ Best option';
-    banner.textContent = `${label}: ${pick.b.name} ${pick.score}/10${isAdv ? ' · advanced' : ''}`;
+    const isAdv = pick.b?.advanced;
+    const label = pick.score >= 8 ? '🔥 Firing' : '✓ Best option';
+    const betterAdv = bestAll.score > pick.score ? ` (${bestAll.b.name} ${bestAll.score} · advanced)` : '';
+    banner.textContent = `${label}: ${pick.b.name} ${pick.score}/10${isAdv ? ' · advanced' : ''}${betterAdv}`;
+    banner.style.cursor = 'pointer';
+    banner.onclick = () => {
+      setBreak(pick.idx);
+      // Also highlight the break button briefly
+      const btn = document.getElementById(`btn${pick.idx}`);
+      if (btn) { btn.style.outline = '2px solid var(--high)'; setTimeout(() => btn.style.outline = '', 800); }
+    };
     banner.style.display = '';
   } else if (banner) {
     banner.style.display = 'none';
+    banner.onclick = null;
   }
 }
 ///////////////////////////////////////////////////
+
+// Direction arrow — returns an SVG arrow rotated to the compass direction
+const DIR_DEG = { N:0,NNE:22.5,NE:45,ENE:67.5,E:90,ESE:112.5,SE:135,SSE:157.5,S:180,SSW:202.5,SW:225,WSW:247.5,W:270,WNW:292.5,NW:315,NNW:337.5 };
+function dirArrow(dir, size=24, color='currentColor') {
+  const deg = DIR_DEG[dir];
+  if (deg === undefined) return '';
+  // Arrow points TOWARD the source (where wind/swell is coming from)
+  // So rotate the upward arrow by deg + 180° to flip it to point at origin
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="display:inline-block;vertical-align:middle;transform:rotate(${deg + 180}deg);flex-shrink:0;" fill="none"><path d="M12 3L12 18M7 8L12 3L17 8" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
 
 function getCurrentTide(tides) {
   if (!tides || !tides.tides || tides.tides.length === 0) return null;
@@ -1531,6 +1555,22 @@ function renderAll(data) {
     const idxTmrw = times.findIndex(t => t.startsWith(tomorrowStr));
     data.forecast._period         = periodArr && idxNow  > -1 ? periodArr[idxNow]  : null;
     data.forecast._periodTomorrow = periodArr && idxTmrw > -1 ? periodArr[idxTmrw] : null;
+
+    // Pre-compute daily average periods for days 2+ from Open-Meteo hourly data
+    // This gives fairer forecast scores beyond tomorrow
+    if (periodArr) {
+      data.forecast._periodByDay = data.forecast.forecasts.map((day, i) => {
+        if (i === 0) return data.forecast._period;
+        if (i === 1) return data.forecast._periodTomorrow;
+        // Find hours for this day using Brisbane date offset
+        const dayBrisbane = new Date(now.getTime() + (10 + 24 * i) * 60 * 60 * 1000);
+        const dayStr = `${dayBrisbane.getUTCFullYear()}-${String(dayBrisbane.getUTCMonth()+1).padStart(2,'0')}-${String(dayBrisbane.getUTCDate()).padStart(2,'0')}`;
+        const dayIndices = times.reduce((acc, t, idx) => { if (t.startsWith(dayStr)) acc.push(idx); return acc; }, []);
+        if (!dayIndices.length) return null;
+        const vals = dayIndices.map(idx => periodArr[idx]).filter(v => v !== null && v !== undefined);
+        return vals.length ? Math.round(vals.reduce((a,v) => a+v, 0) / vals.length) : null;
+      });
+    }
   }
 
   renderForecast(data.forecast, data.tides[currentStation], data.swell);
@@ -1638,7 +1678,7 @@ function estimateSurfHeight(offshoreH, exposure, swellDir, breakData, period) {
   }
   // Period multiplier: longer period wraps headlands better — only applies to point breaks
   let periodMultiplier = 1.0;
-  if (period !== null && period !== undefined && breakData?.pointBreak) {
+  if (period !== null && period !== undefined && (breakData?.pointBreak || breakData?.name === 'Sunshine Beach')) {
     if (period >= 14)      periodMultiplier = 1.15;
     else if (period >= 11) periodMultiplier = 1.05;
     else if (period <= 8)  periodMultiplier = 0.85;
@@ -1734,9 +1774,8 @@ function renderForecast(forecast, tideData, swellData) {
       energy += currentWindWaveHeight * currentWindWaveHeight * currentWindWavePeriod * C;
     }
     energy = Math.round(energy);
-    const energyLabel = energy >= 300 ? 'Powerful' : energy >= 100 ? 'Moderate' : energy >= 30 ? 'Weak' : 'Tiny';
     const approx = currentWindWaveHeight === null ? '~' : ''; // exact if we have all partitions
-    waveEnergyHtml = ` · <span title="Wave energy (Surfline-calibrated, H²×T×2.43 per partition)" style="color:var(--muted);font-size:11px;">${approx}${energy} kJ (${energyLabel})</span>`;
+    waveEnergyHtml = ` · <span title="Wave energy (H²×T×2.43 per partition)" style="color:var(--muted);font-size:11px;">${approx}${energy} kJ</span>`;
   }
 
   const windSpeed = current ? extractWindSpeed(current.winds) : null;
@@ -1758,7 +1797,15 @@ function renderForecast(forecast, tideData, swellData) {
   const tideStr = (() => {
     const t = getCurrentTide(tideData);
     if (!t || t.current === undefined) return '—';
-    return t.current.toFixed(1) + 'm ' + (t.rising ? '↑' : '↓');
+    const dir = t.rising ? '↑' : '↓';
+    const nextType = t.next?.type?.toLowerCase() || '';
+    const nextTime = t.next ? (() => {
+      const [h, m] = t.next.time.split(':').map(Number);
+      const ampm = h < 12 ? 'am' : 'pm';
+      return `${(h % 12) || 12}:${String(m).padStart(2,'0')}${ampm}`;
+    })() : '';
+    const nextStr = nextType && nextTime ? ` · ${nextType} ${nextTime}` : '';
+    return t.current.toFixed(1) + 'm ' + dir + nextStr;
   })();
 
   const currentCard = document.getElementById('currentCard');
@@ -1775,17 +1822,18 @@ function renderForecast(forecast, tideData, swellData) {
         </div>
         <div style="padding:14px 16px;border-bottom:1px solid var(--border);">
           <div class="condition-label">Wind</div>
-          <div class="condition-value">${extractDir(shortDir(current.winds)) || shortDir(current.winds)}</div>
+          <div class="condition-value" style="display:flex;align-items:center;gap:6px;">${dirArrow(extractDir(shortDir(current.winds)), 20, 'var(--text)')}<span>${extractDir(shortDir(current.winds)) || shortDir(current.winds)}</span></div>
           ${windSpeed ? `<div class="condition-sub">${windSpeed}</div>` : ''}
         </div>
         <div style="padding:14px 16px;border-right:1px solid var(--border);">
           <div class="condition-label">Swell</div>
-          <div class="condition-value">${(() => {
-            const dir = extractDir(shortDir(current.swell)) || '—';
+          <div class="condition-value" style="display:flex;align-items:center;gap:6px;">${(() => {
+            const dir = extractDir(shortDir(current.swell));
             const h = extractHeight(current.swell);
             const hStr = h !== null ? h.toFixed(1) + 'm' : '';
             const pStr = (currentPeriod !== null && currentPeriod !== undefined) ? Number(currentPeriod).toFixed(0) + 's' : '';
-            return dir + (hStr ? ' · ' + hStr : '') + (pStr ? ' · ' + pStr : '');
+            const details = (hStr ? ' · ' + hStr : '') + (pStr ? ' · ' + pStr : '');
+            return dirArrow(dir, 20, 'var(--accent)') + `<span>${dir || '—'}${details}</span>`;
           })()}</div>
           ${waveEnergyHtml ? `<div class="condition-sub">${waveEnergyHtml.replace(/ · /,'').trim()}</div>` : ''}
         </div>
@@ -2199,12 +2247,12 @@ async function loadNightMode() {
           </div>
           <div style="padding:14px 16px;border-bottom:1px solid var(--border);">
             <div class="condition-label">Wind</div>
-            <div class="condition-value">${extractDir(shortDir(today.winds)) || shortDir(today.winds)}</div>
+            <div class="condition-value" style="display:flex;align-items:center;gap:6px;">${dirArrow(extractDir(shortDir(today.winds)), 20, 'var(--text)')}<span>${extractDir(shortDir(today.winds)) || shortDir(today.winds)}</span></div>
             ${windSpeed ? `<div class="condition-sub">${windSpeed}</div>` : ''}
           </div>
           <div style="padding:14px 16px;border-right:1px solid var(--border);">
             <div class="condition-label">Swell</div>
-            <div class="condition-value">${(() => { const dir = extractDir(shortDir(today.swell)) || shortDir(today.swell) || '—'; const h = extractHeight(today.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : ''; const pStr = nightPeriod !== null ? Math.round(nightPeriod) + 's' : ''; return dir + (hStr ? ' · ' + hStr : '') + (pStr ? ' · ' + pStr : ''); })()}</div>
+            <div class="condition-value" style="display:flex;align-items:center;gap:6px;">${(() => { const dir = extractDir(shortDir(today.swell)); const h = extractHeight(today.swell); const hStr = h !== null ? h.toFixed(1) + 'm' : ''; const pStr = nightPeriod !== null ? Math.round(nightPeriod) + 's' : ''; const details = (hStr ? ' · ' + hStr : '') + (pStr ? ' · ' + pStr : ''); return dirArrow(dir, 20, 'var(--accent)') + '<span>' + (dir || '—') + details + '</span>'; })()}</div>
             ${nightEnergyHtml ? `<div class="condition-sub">${nightEnergyHtml.replace(/ · /,'').trim()}</div>` : ''}
           </div>
           <div style="padding:14px 16px;">
@@ -2298,7 +2346,10 @@ const LIVE_CAM_LINKS = {
     { label: 'Surfline', url: 'https://www.surfline.com/surf-report/noosa-heads/5842041f4e65fad6a7708bee' },
   ],
   2: [{ label: 'Swellnet', url: 'https://www.swellnet.com/surfcams/nationals' }],
-  5: [{ label: 'Surfline', url: 'https://www.surfline.com/surf-report/sunshine-beach/5d81683d213f4400014af35d' }],
+  5: [
+    { label: 'Swellnet', url: 'https://www.swellnet.com/surfcams/sunshine-beach' },
+    { label: 'Surfline', url: 'https://www.surfline.com/surf-report/sunshine-beach/5d81683d213f4400014af35d' },
+  ],
 };
 
 function showLiveCamButton(breakIndex) {
@@ -2308,15 +2359,15 @@ function showLiveCamButton(breakIndex) {
   if (!cams) { btn.style.display = 'none'; return; }
   btn.style.display = '';
   if (cams.length === 1) {
-    btn.textContent = '↗ CAM';
+    btn.innerHTML = '↗ CAM';
+    btn.style.padding = '4px 8px';
     btn.onclick = () => window.open(cams[0].url, '_blank');
   } else {
-    btn.textContent = '↗ CAMS';
-    btn.onclick = () => {
-      const choice = cams.map((c, i) => `${i + 1}. ${c.label}`).join('\n');
-      const idx = prompt(`Open cam:\n${choice}\nEnter 1 or 2:`) - 1;
-      if (cams[idx]) window.open(cams[idx].url, '_blank');
-    };
+    btn.style.padding = '2px';
+    btn.innerHTML = cams.map((c, i) =>
+      `<span onclick="event.stopPropagation();window.open('${c.url}','_blank')" style="display:inline-block;padding:2px 7px;cursor:pointer;${i < cams.length - 1 ? 'border-right:1px solid rgba(255,255,255,0.2);' : ''}">↗ ${c.label}</span>`
+    ).join('');
+    btn.onclick = null;
   }
 }
 
