@@ -597,8 +597,9 @@
   <div id="content" class="content">
     <div id="breakPhotoWrap" style="margin: 12px 20px 0; height: 140px; border-radius: 10px; overflow: hidden; position: relative;">
       <img id="breakImg" src="" alt="" loading="lazy" style="width:100%; height:100%; object-fit:cover; display:block; transition: opacity 0.3s, filter 0.4s;">
-      <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(10,12,15,0.65) 0%, transparent 55%);"></div>
+      <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(10,12,15,0.65) 0%, transparent 55%);pointer-events:none;"></div>
       <div id="scoreOverlay" style="position:absolute;inset:0;transition:background 0.4s;pointer-events:none;"></div>
+      <button id="liveCamBtn" onclick="toggleLiveCam()" style="display:none;position:absolute;top:8px;right:8px;background:rgba(10,12,15,0.7);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;padding:4px 8px;cursor:pointer;">↗ CAM</button>
     </div>
     <div id="bestBreakBanner" style="display:none;margin:10px 20px 0;padding:10px 14px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);border-radius:10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--high);letter-spacing:0.5px;"></div>
     <div class="synopsis-card" id="breakNotes"></div>
@@ -609,7 +610,7 @@
       <span class="night-banner-inner">Live conditions resume at 4am &nbsp;&nbsp;·&nbsp;&nbsp; Live conditions resume at 4am &nbsp;&nbsp;·&nbsp;&nbsp; Live conditions resume at 4am</span>
     </div>
 
-    <div class="synopsis-card" id="synopsisCard"></div>
+    <div id="synopsisCard" onclick="toggleSynopsis()" style="cursor:pointer;margin:8px 20px 0;font-size:12px;color:var(--accent);line-height:1.6;font-style:italic;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 16px;"></div>
     <div class="section-label" id="currentConditionsLabel">CURRENT CONDITIONS</div>
     <div class="current-card" id="currentCard"></div>
 
@@ -728,6 +729,7 @@ const BREAKS = [
     notes: 'Classic longboard right-hander at the end of Hastings St. Ideal ENE–E swell with S–SSW offshore wind. Needs size to wrap around the point. Sensitive to NE wind — anything from north quarters will ruin it.',
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
+    pointBreak: true, // benefits from long-period refraction around headland
     exposure: 0.32, // First Point: most sheltered, calibrated to Surfline (2.8m→0.9m)
     ideal:      { swellDirs: ['ENE', 'E', 'NE'],         windDirs: ['S', 'SSW', 'SW'],                     swellMin: 0.7, swellMax: 1.0, periodMin: 10 },
     acceptable: { swellDirs: ['ESE', 'NNE', 'SE'],      windDirs: ['SSE', 'SE', 'WSW', 'W'],              swellMin: 0.3, swellMax: 1.2, periodMin: 8  },
@@ -740,9 +742,10 @@ const BREAKS = [
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
     advanced: true, // Boiling Pot takeoff — expert surfers only
+    pointBreak: true,
     exposure: 0.38, // Nationals: slightly more exposed than First Point
-    ideal:      { swellDirs: ['ENE', 'E', 'NE'],         windDirs: ['SE', 'SSE', 'S'],                     swellMin: 0.7, swellMax: 1.2, periodMin: 10 },
-    acceptable: { swellDirs: ['ESE', 'NNE', 'SE'],      windDirs: ['SSW', 'SW', 'ESE'],                   swellMin: 0.3, swellMax: 1.5, periodMin: 8  },
+    ideal:      { swellDirs: ['ENE', 'E', 'NE'],         windDirs: ['SE', 'SSE', 'S'],                     swellMin: 0.8, swellMax: 1.4, periodMin: 9  },
+    acceptable: { swellDirs: ['ESE', 'NNE', 'SE'],      windDirs: ['SSW', 'SW', 'ESE'],                   swellMin: 0.5, swellMax: 1.8, periodMin: 7  },
     avoid:      { swellDirs: ['N', 'NW', 'S'],          windDirs: ['N', 'NNE', 'NE', 'ENE', 'E', 'W'],   swellMin: 0,   swellMax: 9,   periodMin: 0, windPenalty: 2  },
   },
   {
@@ -751,6 +754,7 @@ const BREAKS = [
     notes: 'The jewel of the Noosa points. Long, fast rights off a bouldery headland — can barrel on lower tides. Best ENE–E swell with SE–S offshore wind. Low to mid tide. NE seabreezes kill it.',
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
+    pointBreak: true,
     exposure: 0.37, // Tea Tree: similar exposure to Nationals
     ideal:      { swellDirs: ['ENE', 'E', 'NE'],         windDirs: ['SE', 'SSE', 'S'],                     swellMin: 0.7, swellMax: 1.0, periodMin: 10 },
     acceptable: { swellDirs: ['ESE', 'NNE', 'SE'],      windDirs: ['SSW', 'SW', 'ESE'],                   swellMin: 0.3, swellMax: 1.2, periodMin: 8  },
@@ -763,6 +767,7 @@ const BREAKS = [
     img: null,
     tide: { ideal: 'low-mid', avoid: 'high' },
     advanced: true, // Most exposed, powerful — intermediate to advanced
+    pointBreak: true,
     exposure: 0.45, // Granite Bay: most exposed of the points
     ideal:      { swellDirs: ['ENE', 'E', 'NE', 'NNE'], windDirs: ['S', 'SSE', 'SE', 'SSW'],              swellMin: 0.7, swellMax: 1.2, periodMin: 9  },
     acceptable: { swellDirs: ['ESE', 'N', 'NNW', 'SE'], windDirs: ['SW', 'W', 'ESE'],                    swellMin: 0.4, swellMax: 1.5, periodMin: 7  },
@@ -828,12 +833,12 @@ function conditionNoteTomorrow(breakData, forecast) {
   if (windDir) {
     const speedKts = extractWindSpeedKts(tomorrow.winds || '');
     const speedKmh = speedKts !== null ? Math.round(speedKts * 1.852) : null;
-    const speedStr = speedKts !== null ? ` at ${Math.round(speedKts)} kts (${speedKmh} km/h)` : '';
+    const speedStr = speedKts !== null ? ` at ${speedKmh} km/h` : '';
     if (ideal.windDirs.includes(windDir))           notes.push(`${windDir} wind is offshore${speedStr}`);
     else if (acceptable.windDirs.includes(windDir)) notes.push(`${windDir} wind is manageable${speedStr}`);
     else if (avoid.windDirs.includes(windDir))      notes.push(`${windDir} wind is onshore${speedStr}`);
     else                                            notes.push(`${windDir} wind is cross-shore${speedStr}`);
-    if (speedKts !== null && speedKts > 25) notes.push(`strong winds (${Math.round(speedKts)} kts) will affect surface quality`);
+    if (speedKts !== null && speedKts > 20) notes.push(`strong winds (${Math.round(speedKts * 1.852)} km/h) will affect surface quality`);
   }
 
   // Tide (use tomorrowTide if available, otherwise skip)
@@ -865,6 +870,7 @@ function setBreak(index) {
   const b = BREAKS[index];
   const imgEl = document.getElementById('breakImg');
   if (imgEl) imgEl.src = getBreakImg(index);
+  showLiveCamButton(index);
 
   // Update surf height in current conditions card based on selected break exposure
   const surfVal = document.getElementById('surfHeightValue');
@@ -872,7 +878,8 @@ function setBreak(index) {
     const swellText = shortDir(cachedData.forecast.forecasts[0]?.swell || '');
     const offshoreH = extractHeight(swellText);
     const swellDir = extractDir(swellText);
-    const surfH = estimateSurfHeight(offshoreH, b.exposure, swellDir, b);
+    const currentPer = cachedData.forecast._period ?? null;
+    const surfH = estimateSurfHeight(offshoreH, b.exposure, swellDir, b, currentPer);
     surfVal.innerHTML = surfH !== null
       ? `~${surfH.toFixed(1)}m <span style="color:var(--muted);font-size:10px;">est. face at ${b.subtitle}</span>`
       : '—';
@@ -906,7 +913,7 @@ function setBreak(index) {
         if (surfEl) {
           const h = parseFloat(surfEl.dataset.offshore) || null;
           const d = surfEl.dataset.dir || null;
-          const sH = estimateSurfHeight(h, b.exposure, d, b);
+          const sH = estimateSurfHeight(h, b.exposure, d, b, cachedData?.forecast?._period ?? null);
           surfEl.textContent = sH !== null ? sH.toFixed(1) + 'm' : '—';
         }
       });
@@ -992,7 +999,6 @@ function setBreak(index) {
       <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;line-height:1;color:${score >= 7 ? 'var(--high)' : score >= 5 ? 'var(--accent)' : 'var(--muted)'};">${score >= 9 ? 'Epic' : score >= 7 ? 'Good' : score >= 5 ? 'Fun' : score >= 3 ? 'Poor' : (cachedData?.forecast?._scoringHeight < 0.5 ? 'Flat' : 'Poor')}</span>
       <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:4px;">${contextStr}</span>
     </div>
-    <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:8px;letter-spacing:0.5px;">swell dir · size · period · wind · tide · swell quality</span><br>
     <span style="color:#fff;font-style:normal;" id="conditionNoteText">${note}</span>` : ''}
     ${noteTomorrow ? `<br><br><span style="color:var(--accent);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;">${tomorrowDay.toUpperCase()}</span>
     <span style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;margin-left:8px;">${scoreTomorrow !== null ? scoreTomorrow + '/10' : ''}</span>
@@ -1011,13 +1017,30 @@ function setBreak(index) {
 }
 
 function toggleSynopsis() {
+  const collapsed = document.getElementById('synopsisCollapsed');
   const short = document.getElementById('synopsisShort');
-  const full  = document.getElementById('synopsisFull');
+  const full = document.getElementById('synopsisFull');
   const toggle = document.getElementById('synopsisToggle');
-  const isExpanded = full.style.display !== 'none';
-  short.style.display  = isExpanded ? '' : 'none';
-  full.style.display   = isExpanded ? 'none' : '';
-  toggle.textContent   = isExpanded ? 'more' : 'less';
+
+  const isCollapsed = collapsed && collapsed.style.display !== 'none';
+  const isShort = short && short.style.display !== 'none' && full && full.style.display === 'none';
+  const isFull = full && full.style.display !== 'none';
+
+  if (isCollapsed) {
+    // Collapsed → show first sentence
+    if (collapsed) collapsed.style.display = 'none';
+    if (short) short.style.display = '';
+    if (toggle) toggle.textContent = full ? 'more' : 'less';
+  } else if (isShort && full) {
+    // First sentence → show full text
+    if (full) full.style.display = '';
+    if (toggle) toggle.textContent = 'less';
+  } else {
+    // Full or no full text → collapse
+    if (short) short.style.display = 'none';
+    if (full) full.style.display = 'none';
+    if (collapsed) collapsed.style.display = '';
+  }
 }
 
 function toggleAbout(headerEl) {
@@ -1146,7 +1169,16 @@ function scoreBreak(breakData, forecast) {
         dirMultiplier = minDist <= 2 ? 0.6 : 0.4;
       }
     }
-    scoringHeight = swellHeight * breakData.exposure * dirMultiplier;
+    // Physical height (no period mult) used for size cap — keeps cap honest
+    // Period-adjusted height only used for swellMin/Max range check (not currently used)
+    let periodMult = 1.0;
+    if (period !== null && period !== undefined && breakData.pointBreak) {
+      if (period >= 14)      periodMult = 1.15;
+      else if (period >= 11) periodMult = 1.05;
+      else if (period <= 8)  periodMult = 0.85;
+    }
+    const physicalHeight = swellHeight * breakData.exposure * dirMultiplier;
+    scoringHeight = physicalHeight; // size cap uses physical height
   }
 
   const { ideal, acceptable, avoid } = breakData;
@@ -1255,12 +1287,12 @@ function conditionNote(breakData, forecast) {
   if (windDir) {
     const speedKts = extractWindSpeedKts(current.winds || '');
     const speedKmh = speedKts !== null ? Math.round(speedKts * 1.852) : null;
-    const speedStr = speedKts !== null ? ` at ${Math.round(speedKts)} kts (${speedKmh} km/h)` : '';
+    const speedStr = speedKts !== null ? ` at ${speedKmh} km/h` : '';
     if (ideal.windDirs.includes(windDir)) notes.push(`${windDir} wind is offshore${speedStr}`);
     else if (acceptable.windDirs.includes(windDir)) notes.push(`${windDir} wind is manageable${speedStr}`);
     else if (avoid.windDirs.includes(windDir)) notes.push(`${windDir} wind is onshore${speedStr}`);
     else notes.push(`${windDir} wind is cross-shore${speedStr}`);
-    if (speedKts !== null && speedKts > 25) notes.push(`strong winds (${Math.round(speedKts)} kts) will affect surface quality`);
+    if (speedKts !== null && speedKts > 20) notes.push(`strong winds (${Math.round(speedKts * 1.852)} km/h) will affect surface quality`);
   }
 
   // Tide
@@ -1501,7 +1533,7 @@ function renderAll(data) {
     data.forecast._periodTomorrow = periodArr && idxTmrw > -1 ? periodArr[idxTmrw] : null;
   }
 
-  renderForecast(data.forecast, data.tides.noosa, data.swell);
+  renderForecast(data.forecast, data.tides[currentStation], data.swell);
   // Attach current tide and estimated tomorrow tide (at 10am) for scoring
   const currentTide = getCurrentTide(data.tides.noosa);
   data.forecast._tide = currentTide;
@@ -1589,7 +1621,9 @@ function shortDir(text) {
 // Estimated surf (face) height from offshore Hm0, break exposure, and swell direction
 // Calibrated: First Point exposure=0.32 → 2.8m offshore = 0.9m surf (Surfline, May 2026)
 // Direction multiplier: ideal angle = 1.0, one step off = 0.8, two steps off = 0.6
-function estimateSurfHeight(offshoreH, exposure, swellDir, breakData) {
+// Estimated surf (face) height from offshore Hm0, break exposure, swell direction and period
+// Period multiplier: longer period swell wraps around headlands more efficiently
+function estimateSurfHeight(offshoreH, exposure, swellDir, breakData, period) {
   if (offshoreH === null || offshoreH === undefined || !exposure) return null;
   let dirMultiplier = 1.0;
   if (swellDir && breakData) {
@@ -1602,7 +1636,15 @@ function estimateSurfHeight(offshoreH, exposure, swellDir, breakData) {
       dirMultiplier = minDist <= 2 ? 0.6 : 0.4;
     }
   }
-  return Math.round(offshoreH * exposure * dirMultiplier * 10) / 10;
+  // Period multiplier: longer period wraps headlands better — only applies to point breaks
+  let periodMultiplier = 1.0;
+  if (period !== null && period !== undefined && breakData?.pointBreak) {
+    if (period >= 14)      periodMultiplier = 1.15;
+    else if (period >= 11) periodMultiplier = 1.05;
+    else if (period <= 8)  periodMultiplier = 0.85;
+    // 9–10s = neutral (1.0)
+  }
+  return Math.round(offshoreH * exposure * dirMultiplier * periodMultiplier * 10) / 10;
 }
 
 ///////////////////////////////////////////////////
@@ -1639,15 +1681,12 @@ function renderForecast(forecast, tideData, swellData) {
     warnEl.classList.remove('visible');
   }
 
-  // Synopsis
+  // Synopsis — collapsed by default, tap to expand
   const synopsisText = forecast.synopsis || '—';
-  // Use first sentence as default, full text on expand
   const synopsisFirst = synopsisText.match(/^[^.!?]+[.!?]/)?.[0]?.trim() || synopsisText;
   const synopsisEl = document.getElementById('synopsisCard');
-  synopsisEl.innerHTML = synopsisFirst.length < synopsisText.length
-    ? `<span id="synopsisShort">${synopsisFirst}</span><span id="synopsisFull" style="display:none"> ${synopsisText}</span>
-       <span onclick="toggleSynopsis()" style="color:var(--high);cursor:pointer;font-size:10px;margin-left:4px;font-style:normal;" id="synopsisToggle">more</span>`
-    : synopsisText;
+  synopsisEl.innerHTML = `<span id="synopsisShort" style="display:none">${synopsisFirst}${synopsisFirst.length < synopsisText.length ? `<span id="synopsisFull" style="display:none"> ${synopsisText}</span> <span style="color:var(--high);font-size:10px;font-style:normal;" id="synopsisToggle">more</span>` : ''}</span>
+    <span id="synopsisCollapsed" style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;font-style:normal;display:block;padding:6px 0;">BOM SYNOPSIS ▾</span>`;
 
 
   // Current conditions (first forecast day)
@@ -1891,7 +1930,7 @@ function renderSwellChart(swellData) {
 
   const maxVal = Math.max(...sampledWave) * 1.1;
   const minVal = 0;
-  const pad = { top: 8, bottom: 20, left: 28, right: 4 };
+  const pad = { top: 22, bottom: 20, left: 28, right: 4 };
   const chartW = W - pad.left - pad.right;
   const chartH = H - pad.top - pad.bottom;
 
@@ -1996,6 +2035,22 @@ function renderSwellChart(swellData) {
     ctx.fillStyle = 'rgba(0,212,255,0.6)';
     ctx.textAlign = 'center';
     ctx.fillText('NOW', nowX, pad.top + 8);
+
+    // Swell direction at current time
+    const dirArr = swellData.hourly.swell_wave_direction;
+    if (dirArr) {
+      const rawDirIdx = swellData.hourly.time.findIndex(t => t >= nowUtcStr);
+      const rawDir = rawDirIdx > -1 ? dirArr[rawDirIdx] : null;
+      if (rawDir !== null) {
+        // Convert degrees to compass
+        const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+        const compass = dirs[Math.round(rawDir / 22.5) % 16];
+        ctx.font = `${7 * dpr}px DM Mono, monospace`;
+        ctx.fillStyle = 'rgba(0,212,255,0.5)';
+        ctx.textAlign = 'center';
+        ctx.fillText(compass, nowX, pad.top - 4);
+      }
+    }
 
     // Trend: compare next 12h vs next 12–24h wave heights
     const next12 = sampledWave.slice(nowIdx, nowIdx + 2);
@@ -2159,14 +2214,12 @@ async function loadNightMode() {
         </div>`;
     }
 
-    // Populate synopsis card
+    // Populate synopsis card — collapsed by default
     const synopsisText = data.forecast.synopsis || '—';
     const synopsisFirst = synopsisText.match(/^[^.!?]+[.!?]/)?.[0]?.trim() || synopsisText;
     const synopsisEl = document.getElementById('synopsisCard');
-    synopsisEl.innerHTML = synopsisFirst.length < synopsisText.length
-      ? `<span id="synopsisShort">${synopsisFirst}</span><span id="synopsisFull" style="display:none"> ${synopsisText}</span>
-         <span onclick="toggleSynopsis()" style="color:var(--high);cursor:pointer;font-size:10px;margin-left:4px;font-style:normal;" id="synopsisToggle">more</span>`
-      : synopsisText;
+    synopsisEl.innerHTML = `<span id="synopsisShort" style="display:none">${synopsisFirst}${synopsisFirst.length < synopsisText.length ? `<span id="synopsisFull" style="display:none"> ${synopsisText}</span> <span style="color:var(--high);font-size:10px;font-style:normal;" id="synopsisToggle">more</span>` : ''}</span>
+      <span id="synopsisCollapsed" style="color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;font-style:normal;display:block;padding:6px 0;">BOM SYNOPSIS ▾</span>`;
     document.getElementById('loadingEl').style.display = 'none';
     document.getElementById('content').classList.add('visible');
 
@@ -2235,6 +2288,39 @@ if (typeof ResizeObserver !== 'undefined') {
     }).observe(chartContainer);
   }
 }
+
+///////////////////////////////////////////////////
+// Live cam — links to Swellnet free cam pages (stream can't be proxied due to IP restrictions)
+const LIVE_CAM_LINKS = {
+  0: [{ label: 'Surfline', url: 'https://www.surfline.com/surf-report/main-beach/621941d050f0353bb2afa908' }],
+  1: [
+    { label: 'Swellnet', url: 'https://www.swellnet.com/surfcams/noosa-heads' },
+    { label: 'Surfline', url: 'https://www.surfline.com/surf-report/noosa-heads/5842041f4e65fad6a7708bee' },
+  ],
+  2: [{ label: 'Swellnet', url: 'https://www.swellnet.com/surfcams/nationals' }],
+  5: [{ label: 'Surfline', url: 'https://www.surfline.com/surf-report/sunshine-beach/5d81683d213f4400014af35d' }],
+};
+
+function showLiveCamButton(breakIndex) {
+  const btn = document.getElementById('liveCamBtn');
+  if (!btn) return;
+  const cams = LIVE_CAM_LINKS[breakIndex];
+  if (!cams) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  if (cams.length === 1) {
+    btn.textContent = '↗ CAM';
+    btn.onclick = () => window.open(cams[0].url, '_blank');
+  } else {
+    btn.textContent = '↗ CAMS';
+    btn.onclick = () => {
+      const choice = cams.map((c, i) => `${i + 1}. ${c.label}`).join('\n');
+      const idx = prompt(`Open cam:\n${choice}\nEnter 1 or 2:`) - 1;
+      if (cams[idx]) window.open(cams[idx].url, '_blank');
+    };
+  }
+}
+
+function toggleLiveCam() {} // handled by showLiveCamButton's onclick
 
 // Smart scheduler — loads data hourly, but only between 4am and 6pm Brisbane time (UTC+10)
 function getBrisbaneHour() {
